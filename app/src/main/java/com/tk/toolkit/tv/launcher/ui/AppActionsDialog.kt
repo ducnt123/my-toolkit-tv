@@ -58,19 +58,19 @@ fun AppActionsDialog(
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (isHidden) {
                     ActionItem(
-                        "Unhide", "Show on the home screen again",
+                        "Bỏ ẩn", "Hiển thị lại trên màn hình chính",
                         onToggleHidden, Modifier.focusRequester(firstAction),
                     )
                 } else {
-                    ActionItem("Move", "Reorder on the home screen", onMove, Modifier.focusRequester(firstAction))
-                    ActionItem("Hide", "Move to More Apps", onToggleHidden)
+                    ActionItem("Di chuyển", "Thay đổi vị trí trên màn hình chính", onMove, Modifier.focusRequester(firstAction))
+                    ActionItem("Ẩn", "Di chuyển vào Ứng dụng khác", onToggleHidden)
                 }
-                ActionItem("App info", "Storage, permissions & more", onAppInfo)
-                ActionItem("Force stop", "Close the app completely", onForceStop)
+                ActionItem("Thông tin ứng dụng", "Dung lượng, quyền và cài đặt khác", onAppInfo)
+                ActionItem("Bắt buộc dừng", "Đóng ứng dụng hoàn toàn", onForceStop)
                 if (app.canUninstall) {
                     ActionItem(
-                        if (app.isUpdatedSystemApp) "Uninstall updates" else "Uninstall",
-                        if (app.isUpdatedSystemApp) "Restore the factory version" else "Remove from this TV",
+                        if (app.isUpdatedSystemApp) "Gỡ bản cập nhật" else "Gỡ cài đặt",
+                        if (app.isUpdatedSystemApp) "Khôi phục phiên bản gốc" else "Gỡ khỏi thiết bị này",
                         onUninstall,
                         danger = true,
                     )

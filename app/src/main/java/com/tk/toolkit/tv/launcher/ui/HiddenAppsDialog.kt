@@ -63,13 +63,13 @@ fun HiddenAppsDialog(
                 .padding(top = 28.dp),
         ) {
             Text(
-                "More Apps",
+                "Ứng dụng khác",
                 style = MaterialTheme.typography.titleLarge,
                 color = ToolkitColors.OnSurface,
                 modifier = Modifier.padding(horizontal = 28.dp),
             )
             Text(
-                "Hidden from your home screen · long press to unhide",
+                "Ứng dụng bị ẩn khỏi màn hình chính · nhấn giữ để hiện lại",
                 style = MaterialTheme.typography.bodyMedium,
                 color = ToolkitColors.OnSurfaceMuted,
                 modifier = Modifier.padding(top = 4.dp, start = 28.dp, end = 28.dp),

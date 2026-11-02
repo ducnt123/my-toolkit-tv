@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,6 +26,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Border
 import androidx.tv.material3.Card
@@ -39,6 +41,47 @@ private val TileShape = RoundedCornerShape(14.dp)
 /** Home grid entry that opens the hidden apps. */
 @Composable
 fun MoreAppsTile(
+    dimmed: Boolean,
+    focusRequester: FocusRequester,
+    onFocused: () -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    UtilityTile(
+        label = "Ứng dụng khác",
+        icon = Icons.Outlined.Apps,
+        dimmed = dimmed,
+        focusRequester = focusRequester,
+        onFocused = onFocused,
+        onClick = onClick,
+        modifier = modifier,
+    )
+}
+
+/** Home grid entry that opens the launcher customization dialog. */
+@Composable
+fun CustomizeTile(
+    dimmed: Boolean,
+    focusRequester: FocusRequester,
+    onFocused: () -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    UtilityTile(
+        label = "Tùy chỉnh",
+        icon = Icons.Outlined.Tune,
+        dimmed = dimmed,
+        focusRequester = focusRequester,
+        onFocused = onFocused,
+        onClick = onClick,
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun UtilityTile(
+    label: String,
+    icon: ImageVector,
     dimmed: Boolean,
     focusRequester: FocusRequester,
     onFocused: () -> Unit,
@@ -81,13 +124,13 @@ fun MoreAppsTile(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Icon(
-                        Icons.Outlined.Apps,
+                        icon,
                         contentDescription = null,
                         tint = ToolkitColors.OnSurface,
                         modifier = Modifier.size(28.dp),
                     )
                     Text(
-                        "More Apps",
+                        label,
                         style = MaterialTheme.typography.bodyMedium,
                         color = ToolkitColors.OnSurface,
                     )

@@ -28,6 +28,25 @@ class LauncherPrefs(context: Context) {
         prefs.edit { putStringSet(KEY_REMOVED_WATCH, removedWatchItems() + key) }
     }
 
+    fun removeAllWatchItems(keys: Iterable<String>) {
+        prefs.edit { putStringSet(KEY_REMOVED_WATCH, removedWatchItems() + keys) }
+    }
+
+    fun isWatchRowVisible(): Boolean = prefs.getBoolean(KEY_SHOW_WATCH_ROW, true)
+
+    fun setWatchRowVisible(visible: Boolean) {
+        prefs.edit { putBoolean(KEY_SHOW_WATCH_ROW, visible) }
+    }
+
+    fun disabledWatchPackages(): Set<String> = prefs.getStringSet(KEY_DISABLED_WATCH_PKGS, null).orEmpty()
+
+    fun setWatchPackageEnabled(packageName: String, enabled: Boolean) {
+        val updated = disabledWatchPackages().toMutableSet().apply {
+            if (enabled) remove(packageName) else add(packageName)
+        }
+        prefs.edit { putStringSet(KEY_DISABLED_WATCH_PKGS, updated) }
+    }
+
     fun saveWatchOrder(keys: List<String>) {
         prefs.edit { putString(KEY_WATCH_ORDER, keys.joinToString("\n")) }
     }
@@ -53,5 +72,7 @@ class LauncherPrefs(context: Context) {
         const val KEY_HIDDEN = "hidden"
         const val KEY_REMOVED_WATCH = "removed_watch"
         const val KEY_WATCH_ORDER = "watch_order"
+        const val KEY_SHOW_WATCH_ROW = "show_watch_row"
+        const val KEY_DISABLED_WATCH_PKGS = "disabled_watch_pkgs"
     }
 }

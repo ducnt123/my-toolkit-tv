@@ -27,6 +27,18 @@ object AppActions {
     fun openSystemSettings(context: Context) =
         context.safeStart(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 
+    /** Opens Android TV's Network & Internet settings (Wi-Fi and Ethernet). */
+    fun openNetworkSettings(context: Context) {
+        val candidates = listOf(
+            Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+        val match = candidates.firstOrNull { it.resolveActivity(context.packageManager) != null }
+            ?: candidates.last()
+        context.safeStart(match)
+    }
+
     /**
      * Google TV's own "Audio output" picker (TV speakers, HDMI, Bluetooth). It lives in SystemUI;
      * if a build doesn't have it, fall back to Display & Sound settings.

@@ -2,6 +2,7 @@ package com.tk.toolkit.tv.launcher.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -28,16 +29,23 @@ import com.tk.toolkit.tv.ui.theme.ToolkitColors
 
 private val PanelShape = RoundedCornerShape(24.dp)
 
-/** Long-press menu for a Continue Watching item; styled like the app menu. */
+/** Long-press menu for a Continue Watching / Play Next item. */
 @Composable
-fun WatchActionsDialog(item: WatchItem, onDismiss: () -> Unit, onMove: () -> Unit, onRemove: () -> Unit) {
+fun WatchActionsDialog(
+    item: WatchItem,
+    onDismiss: () -> Unit,
+    onOpen: () -> Unit,
+    onRemove: () -> Unit,
+    onClearAll: () -> Unit,
+) {
     val firstAction = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { firstAction.requestFocus() } }
+    val appDisplayName = item.appName.ifBlank { item.packageName }
 
     Dialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
-                .width(400.dp)
+                .width(420.dp)
                 .clip(PanelShape)
                 .background(ToolkitColors.SurfaceRaised)
                 .border(1.dp, Color.White.copy(alpha = 0.08f), PanelShape)
@@ -64,11 +72,38 @@ fun WatchActionsDialog(item: WatchItem, onDismiss: () -> Unit, onMove: () -> Uni
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text("Continue Watching", style = MaterialTheme.typography.bodyMedium, color = ToolkitColors.OnSurfaceMuted)
+                Text(
+                    item.subtitle?.takeIf { it.isNotBlank() } ?: "Tiếp tục xem · $appDisplayName",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = ToolkitColors.OnSurfaceMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
-            Column(Modifier.padding(12.dp)) {
-                ActionItem("Move", "Reorder in Continue Watching", onMove, Modifier.focusRequester(firstAction))
-                if (item.removable) ActionItem("Remove", "Take it off the home screen", onRemove, danger = true)
+            Column(
+                Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                ActionItem(
+                    title = "Xem trên $appDisplayName",
+                    subtitle = "Mở nội dung này trong ứng dụng",
+                    onClick = onOpen,
+                    modifier = Modifier.focusRequester(firstAction),
+                )
+                if (item.removable) {
+                    ActionItem(
+                        title = "Xóa",
+                        subtitle = "Xóa mục này khỏi danh sách Tiếp tục xem",
+                        onClick = onRemove,
+                        danger = true,
+                    )
+                }
+                ActionItem(
+                    title = "Xóa tất cả mục",
+                    subtitle = "Xóa toàn bộ mục khỏi danh sách Tiếp tục xem",
+                    onClick = onClearAll,
+                    danger = true,
+                )
             }
         }
     }

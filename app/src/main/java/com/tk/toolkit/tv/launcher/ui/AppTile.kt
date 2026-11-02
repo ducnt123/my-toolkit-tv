@@ -6,6 +6,12 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Text
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -70,6 +76,7 @@ fun AppTile(
     val glow = remember(app.accent) { glowColor(app.accent) }
     val glowAlpha by animateFloatAsState(if (focused && !dimmed) 1f else 0f, label = "glow")
     val tileAlpha by animateFloatAsState(if (dimmed) 0.35f else 1f, label = "dim")
+    val labelAlpha by animateFloatAsState(if (focused) 1f else 0f, label = "label")
 
     // Keep the tile being moved focused and on screen as it changes position.
     LaunchedEffect(isMoving, index) {
@@ -79,46 +86,63 @@ fun AppTile(
         }
     }
 
-    Box(
+    Column(
         modifier
             .alpha(tileAlpha)
-            .accentGlow(glow, glowAlpha)
             .moveKeys(isMoving, columns, onMoveBy, onDrop),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Card(
-            onClick = onClick,
-            onLongClick = onLongClick,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 9f)
-                .bringIntoViewRequester(bringIntoView)
-                .focusRequester(focusRequester)
-                .onFocusChanged {
-                    focused = it.isFocused
-                    if (it.isFocused) onFocused()
-                },
-            shape = CardDefaults.shape(TileShape),
-            scale = CardDefaults.scale(focusedScale = if (isMoving) 1.14f else 1.08f),
-            border = CardDefaults.border(
-                // Focus is shown by the glow alone; the border only marks a tile being moved.
-                focusedBorder = if (isMoving) movingBorder() else Border.None,
-            ),
-            colors = CardDefaults.colors(containerColor = ToolkitColors.Surface),
-        ) {
-            Box(Modifier.fillMaxSize()) {
-                if (app.banner != null) {
-                    Image(
-                        app.banner,
-                        contentDescription = app.label,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    IconTileContent(app)
+        Box(Modifier.accentGlow(glow, glowAlpha)) {
+            Card(
+                onClick = onClick,
+                onLongClick = onLongClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(16f / 9f)
+                    .bringIntoViewRequester(bringIntoView)
+                    .focusRequester(focusRequester)
+                    .onFocusChanged {
+                        focused = it.isFocused
+                        if (it.isFocused) onFocused()
+                    },
+                shape = CardDefaults.shape(TileShape),
+                scale = CardDefaults.scale(focusedScale = if (isMoving) 1.14f else 1.08f),
+                border = CardDefaults.border(
+                    // Focus is shown by the glow alone; the border only marks a tile being moved.
+                    focusedBorder = if (isMoving) movingBorder() else Border.None,
+                ),
+                colors = CardDefaults.colors(containerColor = ToolkitColors.Surface),
+            ) {
+                Box(Modifier.fillMaxSize()) {
+                    if (app.banner != null) {
+                        Image(
+                            app.banner,
+                            contentDescription = app.label,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        IconTileContent(app)
+                    }
+                    if (isMoving) MoveOverlay()
                 }
-                if (isMoving) MoveOverlay()
             }
         }
+        // Name of the focused app, centered under its banner. Space is always reserved so
+        // the grid doesn't shift as focus moves.
+        Text(
+            app.label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = ToolkitColors.OnSurface,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .fillMaxWidth()
+                // Clears the focused card's 1.08 scale.
+                .padding(top = 10.dp)
+                .alpha(labelAlpha),
+        )
     }
 }
 
@@ -142,7 +166,10 @@ private fun IconTileContent(app: LauncherApp) {
     }
 }
 
-/** While [isMoving], the arrows move the tile by one position or one row and OK drops it. */
+/**
+ * While [isMoving], the arrows move the tile by one position or one row and OK drops it.
+ * With [columns] = 0 (a single row) up/down are swallowed without moving.
+ */
 internal fun Modifier.moveKeys(isMoving: Boolean, columns: Int, onMoveBy: (Int) -> Unit, onDrop: () -> Unit) =
     onPreviewKeyEvent { event ->
         if (!isMoving) return@onPreviewKeyEvent false
@@ -150,8 +177,8 @@ internal fun Modifier.moveKeys(isMoving: Boolean, columns: Int, onMoveBy: (Int) 
         when (event.nativeKeyEvent.keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT -> { if (down) onMoveBy(-1); true }
             KeyEvent.KEYCODE_DPAD_RIGHT -> { if (down) onMoveBy(1); true }
-            KeyEvent.KEYCODE_DPAD_UP -> { if (down) onMoveBy(-columns); true }
-            KeyEvent.KEYCODE_DPAD_DOWN -> { if (down) onMoveBy(columns); true }
+            KeyEvent.KEYCODE_DPAD_UP -> { if (down && columns > 0) onMoveBy(-columns); true }
+            KeyEvent.KEYCODE_DPAD_DOWN -> { if (down && columns > 0) onMoveBy(columns); true }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
                 if (event.type == KeyEventType.KeyUp) onDrop()
                 true

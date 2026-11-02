@@ -4,9 +4,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
 import com.tk.toolkit.tv.core.ToolkitApp
@@ -16,12 +18,35 @@ class MainActivity : ComponentActivity() {
 
     private val launcherViewModel: LauncherViewModel by viewModels()
 
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) launcherViewModel.refresh()
+    }
+
     private val packageReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) = launcherViewModel.refresh()
     }
 
+    private val homeKeyReceiver = object : BroadcastReceiver() {
+        @Suppress("DEPRECATION")
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == Intent.ACTION_CLOSE_SYSTEM_DIALOGS &&
+                intent.getStringExtra("reason") == "homekey"
+            ) {
+                launcherViewModel.onHomePressed()
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val tvListingsPerm = "android.permission.READ_TV_LISTINGS"
+        if (ContextCompat.checkSelfPermission(this, tvListingsPerm) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            runCatching { permissionLauncher.launch(tvListingsPerm) }
+        }
         ContextCompat.registerReceiver(
             this,
             packageReceiver,
@@ -34,7 +59,20 @@ class MainActivity : ComponentActivity() {
             },
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
+        @Suppress("DEPRECATION")
+        ContextCompat.registerReceiver(
+            this,
+            homeKeyReceiver,
+            IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS),
+            ContextCompat.RECEIVER_EXPORTED,
+        )
         setContent { ToolkitApp() }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        launcherViewModel.onHomePressed()
     }
 
     override fun onResume() {
@@ -44,6 +82,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         unregisterReceiver(packageReceiver)
+        unregisterReceiver(homeKeyReceiver)
         super.onDestroy()
     }
 }

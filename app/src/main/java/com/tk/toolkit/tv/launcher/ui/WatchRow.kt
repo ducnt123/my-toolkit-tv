@@ -17,6 +17,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -60,6 +61,7 @@ fun WatchRow(
     // tile's scale and glow; a positive margin would pull item 0 left by marginPx on focus.
     val rowScrollSpec = remember { minimalScrollSpec(0f) }
     var focusedIndex by remember { mutableIntStateOf(-1) }
+    var rowHasFocus by remember { mutableStateOf(false) }
 
     // Ensure that focusing the first tile always snaps the row cleanly to the left edge aligned
     // with the Apps grid below.
@@ -72,6 +74,15 @@ fun WatchRow(
         }
     }
 
+    // When focus leaves the row, scroll it back to the start so the first item is laid out and
+    // ready when focus comes back (HomeScreen sends Up/Down entries to the first item).
+    LaunchedEffect(rowHasFocus) {
+        if (rowHasFocus) return@LaunchedEffect
+        if (rowState.firstVisibleItemIndex != 0 || rowState.firstVisibleItemScrollOffset != 0) {
+            runCatching { rowState.scrollToItem(0) }
+        }
+    }
+
     BoxWithConstraints(modifier) {
         val tileWidth = (maxWidth - spacing * (VISIBLE_TILES - 1)) / VISIBLE_TILES
         CompositionLocalProvider(LocalBringIntoViewSpec provides rowScrollSpec) {
@@ -81,6 +92,7 @@ fun WatchRow(
                 contentPadding = PaddingValues(horizontal = bleedX, vertical = bleedY),
                 modifier = Modifier
                     .onFocusChanged {
+                        rowHasFocus = it.hasFocus
                         onFocusInRowChanged(it.hasFocus)
                         if (!it.hasFocus) focusedIndex = -1
                     }

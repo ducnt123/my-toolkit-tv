@@ -47,6 +47,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Brush
@@ -203,7 +206,33 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
     }
 
     Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().padding(top = 28.dp)) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(top = 28.dp)
+                // Entering Continue Watching from above (header shortcuts) or below (first app row)
+                // always lands on its first item, rather than the geometrically nearest tile.
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    if (state.movingKey != null || watchItems.isEmpty() || watchRowFocused) {
+                        return@onPreviewKeyEvent false
+                    }
+                    val enterRow = when (event.nativeKeyEvent.keyCode) {
+                        android.view.KeyEvent.KEYCODE_DPAD_DOWN -> headerFocused
+                        android.view.KeyEvent.KEYCODE_DPAD_UP -> {
+                            val key = lastFocusedKey
+                            val appIndex = if (key == null || key in watchKeys) -1
+                            else gridKeys.indexOf(key) - watchKeys.size
+                            !headerFocused && appIndex in 0 until COLUMNS
+                        }
+                        else -> false
+                    }
+                    if (!enterRow) return@onPreviewKeyEvent false
+                    focusJob?.cancel()
+                    focusJob = scope.launch { focusFirstWatchItem() }
+                    true
+                },
+        ) {
             ClockHeader(
                 onOpenNetwork = { AppActions.openNetworkSettings(context) },
                 onOpenAudioOutput = { AppActions.openAudioOutput(context) },

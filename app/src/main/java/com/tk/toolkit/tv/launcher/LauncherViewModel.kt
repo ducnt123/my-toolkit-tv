@@ -28,6 +28,8 @@ data class LauncherState(
     val watchItems: List<WatchItem> = emptyList(),
     /** Whether the Continue Watching row is enabled by the user. */
     val showWatchRow: Boolean = true,
+    /** Number of app tiles per row in the Apps grid (4, 5, or 6). */
+    val appColumns: Int = 6,
     /** Packages whose Continue Watching items are hidden by the user. */
     val disabledWatchPackages: Set<String> = emptySet(),
     /** Packages that currently have at least one item in Continue Watching (before source filtering). */
@@ -48,6 +50,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val _state = MutableStateFlow(
         LauncherState(
             showWatchRow = prefs.isWatchRowVisible(),
+            appColumns = prefs.appColumns(),
             disabledWatchPackages = prefs.disabledWatchPackages(),
         ),
     )
@@ -72,6 +75,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val all = withContext(refreshDispatcher) { prefs.sort(repository.loadApps()) }
             val (watch, activePkgs) = withContext(refreshDispatcher) { loadWatchData(all) }
             val showWatch = prefs.isWatchRowVisible()
+            val columns = prefs.appColumns()
             val disabledWatch = prefs.disabledWatchPackages()
             _state.update { current ->
                 // Don't reshuffle under the user while they're moving something.
@@ -80,6 +84,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     loaded = true,
                     watchItems = watch,
                     showWatchRow = showWatch,
+                    appColumns = columns,
                     disabledWatchPackages = disabledWatch,
                     activeWatchPackages = activePkgs,
                     homeRequestCount = current.homeRequestCount,
@@ -115,6 +120,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun setWatchRowVisible(visible: Boolean) {
         prefs.setWatchRowVisible(visible)
         _state.update { it.copy(showWatchRow = visible) }
+    }
+
+    fun setAppColumns(columns: Int) {
+        val clamped = columns.coerceIn(4, 6)
+        prefs.setAppColumns(clamped)
+        _state.update { it.copy(appColumns = clamped) }
     }
 
     fun setWatchPackageEnabled(packageName: String, enabled: Boolean) {
@@ -201,6 +212,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 movingKey = current.movingKey,
                 watchItems = current.watchItems,
                 showWatchRow = current.showWatchRow,
+                appColumns = current.appColumns,
                 disabledWatchPackages = current.disabledWatchPackages,
                 activeWatchPackages = current.activeWatchPackages,
                 homeRequestCount = current.homeRequestCount,

@@ -1,13 +1,16 @@
 package com.tk.toolkit.tv.launcher.ui
 
+import android.view.KeyEvent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -22,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -30,6 +34,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -49,10 +56,12 @@ private val PanelShape = RoundedCornerShape(24.dp)
 @Composable
 fun CustomizeDialog(
     showWatchRow: Boolean,
+    appColumns: Int,
     apps: List<LauncherApp>,
     disabledWatchPackages: Set<String>,
     activeWatchPackages: Set<String>,
     onToggleWatchRow: (Boolean) -> Unit,
+    onSetAppColumns: (Int) -> Unit,
     onToggleWatchPackage: (String, Boolean) -> Unit,
     onRefresh: () -> Unit,
     onDismiss: () -> Unit,
@@ -68,9 +77,11 @@ fun CustomizeDialog(
         if (!managingSources) {
             MainCustomizePanel(
                 showWatchRow = showWatchRow,
+                appColumns = appColumns,
                 enabledCount = apps.count { it.packageName !in disabledWatchPackages },
                 totalCount = apps.size,
                 onToggleWatchRow = onToggleWatchRow,
+                onSetAppColumns = onSetAppColumns,
                 onOpenSources = { managingSources = true },
                 onRefresh = onRefresh,
             )
@@ -89,9 +100,11 @@ fun CustomizeDialog(
 @Composable
 private fun MainCustomizePanel(
     showWatchRow: Boolean,
+    appColumns: Int,
     enabledCount: Int,
     totalCount: Int,
     onToggleWatchRow: (Boolean) -> Unit,
+    onSetAppColumns: (Int) -> Unit,
     onOpenSources: () -> Unit,
     onRefresh: () -> Unit,
 ) {
@@ -101,7 +114,7 @@ private fun MainCustomizePanel(
 
     Column(
         Modifier
-            .width(460.dp)
+            .width(480.dp)
             .clip(PanelShape)
             .background(ToolkitColors.SurfaceRaised)
             .border(1.dp, Color.White.copy(alpha = 0.08f), PanelShape)
@@ -117,8 +130,73 @@ private fun MainCustomizePanel(
         ) {
             ListItem(
                 selected = false,
+                onClick = {
+                    val next = if (appColumns >= 6) 4 else appColumns + 1
+                    onSetAppColumns(next)
+                },
+                modifier = Modifier
+                    .focusRequester(firstAction)
+                    .onPreviewKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        when (event.nativeKeyEvent.keyCode) {
+                            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                                if (appColumns > 4) onSetAppColumns(appColumns - 1)
+                                true
+                            }
+                            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                if (appColumns < 6) onSetAppColumns(appColumns + 1)
+                                true
+                            }
+                            else -> false
+                        }
+                    },
+                headlineContent = {
+                    Text("Lưới ứng dụng", style = MaterialTheme.typography.titleMedium)
+                },
+                supportingContent = {
+                    Text(
+                        "Hiển thị $appColumns mục trên mỗi hàng",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                },
+                trailingContent = {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        listOf(4, 5, 6).forEach { count ->
+                            val active = count == appColumns
+                            val pillShape = RoundedCornerShape(8.dp)
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .background(
+                                        if (active) ToolkitColors.Accent else ToolkitColors.OnSurface.copy(alpha = 0.08f),
+                                        pillShape,
+                                    )
+                                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                            ) {
+                                Text(
+                                    "$count",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = if (active) ToolkitColors.Background else ToolkitColors.OnSurfaceMuted,
+                                )
+                            }
+                        }
+                    }
+                },
+                shape = ListItemDefaults.shape(RoundedCornerShape(14.dp)),
+                scale = ListItemDefaults.scale(focusedScale = 1.02f),
+                colors = ListItemDefaults.colors(
+                    containerColor = Color.Transparent,
+                    contentColor = ToolkitColors.OnSurface.copy(alpha = 0.7f),
+                    focusedContainerColor = ToolkitColors.OnSurface.copy(alpha = 0.12f),
+                    focusedContentColor = ToolkitColors.OnSurface,
+                ),
+            )
+            ListItem(
+                selected = false,
                 onClick = { onToggleWatchRow(!showWatchRow) },
-                modifier = Modifier.focusRequester(firstAction),
                 headlineContent = {
                     Text("Hiển thị hàng Tiếp tục xem", style = MaterialTheme.typography.titleMedium)
                 },

@@ -38,6 +38,12 @@ class LauncherPrefs(context: Context) {
         prefs.edit { putBoolean(KEY_SHOW_WATCH_ROW, visible) }
     }
 
+    fun appColumns(): Int = prefs.getInt(KEY_APP_COLUMNS, 6).coerceIn(4, 6)
+
+    fun setAppColumns(columns: Int) {
+        prefs.edit { putInt(KEY_APP_COLUMNS, columns.coerceIn(4, 6)) }
+    }
+
     fun disabledWatchPackages(): Set<String> = prefs.getStringSet(KEY_DISABLED_WATCH_PKGS, null).orEmpty()
 
     fun setWatchPackageEnabled(packageName: String, enabled: Boolean) {
@@ -74,5 +80,6 @@ class LauncherPrefs(context: Context) {
         const val KEY_WATCH_ORDER = "watch_order"
         const val KEY_SHOW_WATCH_ROW = "show_watch_row"
         const val KEY_DISABLED_WATCH_PKGS = "disabled_watch_pkgs"
+        const val KEY_APP_COLUMNS = "app_columns"
     }
 }

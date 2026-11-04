@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Input
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SettingsEthernet
 import androidx.compose.material.icons.outlined.Speaker
@@ -64,6 +65,8 @@ fun ClockHeader(
     onOpenAudioOutput: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    showInputsButton: Boolean = false,
+    onOpenInputs: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val clock by produceState(clockText(DateFormat.is24HourFormat(context))) {
@@ -103,6 +106,10 @@ fun ClockHeader(
             Text(clock.date, style = MaterialTheme.typography.bodyLarge, color = ToolkitColors.OnSurfaceMuted)
         }
         Spacer(Modifier.weight(1f))
+        if (showInputsButton) {
+            HeaderButton(Icons.Outlined.Input, "Ngõ vào", onOpenInputs)
+            Spacer(Modifier.width(12.dp))
+        }
         HeaderButton(networkType.icon, networkType.label, onOpenNetwork)
         Spacer(Modifier.width(12.dp))
         HeaderButton(Icons.Outlined.Speaker, "Đầu ra âm thanh", onOpenAudioOutput)

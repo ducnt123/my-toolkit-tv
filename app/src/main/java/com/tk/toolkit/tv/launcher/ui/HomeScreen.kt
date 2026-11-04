@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -54,6 +55,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
@@ -67,10 +69,11 @@ import com.tk.toolkit.tv.launcher.LauncherViewModel
 import com.tk.toolkit.tv.launcher.data.AppActions
 import com.tk.toolkit.tv.launcher.data.AppActions.safeStart
 import com.tk.toolkit.tv.launcher.data.LauncherApp
+import com.tk.toolkit.tv.launcher.data.TvInputs
 import com.tk.toolkit.tv.launcher.data.WatchItem
+import com.tk.toolkit.tv.launcher.data.rememberTvInputs
 import com.tk.toolkit.tv.ui.theme.ToolkitColors
 
-private const val COLUMNS = 6
 private const val MORE_APPS_KEY = "toolkit:more-apps"
 private const val CUSTOMIZE_KEY = "toolkit:customize"
 private const val WATCH_TITLE_KEY = "toolkit:continue-watching-title"
@@ -95,6 +98,8 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
     var menuWatchItem by remember { mutableStateOf<WatchItem?>(null) }
     var showHidden by remember { mutableStateOf(false) }
     var showCustomize by remember { mutableStateOf(false) }
+    var showInputs by remember { mutableStateOf(false) }
+    val tvInputs = rememberTvInputs(context)
     var lastFocusedKey by rememberSaveable { mutableStateOf<String?>(null) }
     var lastFocusedIndex by rememberSaveable { mutableStateOf(0) }
     // Not saved: every fresh start begins on the first app.
@@ -102,8 +107,16 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
     var headerFocused by remember { mutableStateOf(false) }
     var watchRowFocused by remember { mutableStateOf(false) }
     var firstAppRowFocused by remember { mutableStateOf(false) }
+    // Collapse the reserved 2-line caption space under Continue Watching when the row isn't focused,
+    // so the Apps section pulls up close to the Continue Watching thumbnails.
+    val watchRowCollapse by animateDpAsState(
+        targetValue = if (watchRowFocused) 0.dp else 46.dp,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "watchRowCollapse",
+    )
 
     val scrollSpec = with(LocalDensity.current) { remember { minimalScrollSpec(28.dp.toPx()) } }
+    val columns = state.appColumns.coerceIn(4, 6)
     val watchItems = if (state.showWatchRow) state.watchItems else emptyList()
     val watchKeys = watchItems.map { it.key }
     val hasMoreApps = state.hiddenApps.isNotEmpty()
@@ -171,6 +184,7 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
         menuWatchItem = null
         showHidden = false
         showCustomize = false
+        showInputs = false
         if (state.loaded) {
             focusJob?.cancel()
             focusFirstApp()
@@ -223,7 +237,7 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
                             val key = lastFocusedKey
                             val appIndex = if (key == null || key in watchKeys) -1
                             else gridKeys.indexOf(key) - watchKeys.size
-                            !headerFocused && appIndex in 0 until COLUMNS
+                            !headerFocused && appIndex in 0 until columns
                         }
                         else -> false
                     }
@@ -237,6 +251,8 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
                 onOpenNetwork = { AppActions.openNetworkSettings(context) },
                 onOpenAudioOutput = { AppActions.openAudioOutput(context) },
                 onOpenSettings = { AppActions.openSystemSettings(context) },
+                showInputsButton = tvInputs.isNotEmpty(),
+                onOpenInputs = { showInputs = true },
                 modifier = Modifier
                     .zIndex(1f)
                     .padding(horizontal = 48.dp)
@@ -246,7 +262,7 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
 
             CompositionLocalProvider(LocalBringIntoViewSpec provides scrollSpec) {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(COLUMNS),
+                    columns = GridCells.Fixed(columns),
                     state = gridState,
                     // Generous padding so the enlarged focused/moving tile is never clipped at the edges.
                     contentPadding = PaddingValues(horizontal = GRID_PADDING_X, vertical = 28.dp),
@@ -282,7 +298,16 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
                                     onLongClick = { item -> if (state.movingKey == null) menuWatchItem = item },
                                     onMoveBy = viewModel::moveBy,
                                     onDrop = viewModel::endMove,
-                                    modifier = Modifier.focusProperties { canFocus = initialFocusPlaced },
+                                    modifier = Modifier
+                                        .focusProperties { canFocus = initialFocusPlaced }
+                                        .layout { measurable, constraints ->
+                                            val placeable = measurable.measure(constraints)
+                                            val trimPx = watchRowCollapse.roundToPx()
+                                            val height = (placeable.height - trimPx).coerceAtLeast(0)
+                                            layout(placeable.width, height) {
+                                                placeable.place(0, 0)
+                                            }
+                                        },
                                 )
                             }
                         }
@@ -295,14 +320,14 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
                             AppTile(
                                 app = app,
                                 index = index,
-                                columns = COLUMNS,
+                                columns = columns,
                                 isMoving = isMoving,
                                 dimmed = state.movingKey != null && !isMoving,
                                 focusRequester = requesterFor(app.packageName),
                                 onFocused = {
                                     lastFocusedKey = app.packageName
                                     lastFocusedIndex = watchKeys.size + index
-                                    firstAppRowFocused = index < COLUMNS
+                                    firstAppRowFocused = index < columns
                                 },
                                 onClick = {
                                     if (state.movingKey == null) context.safeStart(viewModel.launchIntent(app))
@@ -326,7 +351,7 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
                                     onFocused = {
                                         lastFocusedKey = MORE_APPS_KEY
                                         lastFocusedIndex = watchKeys.size + state.apps.size
-                                        firstAppRowFocused = state.apps.size < COLUMNS
+                                        firstAppRowFocused = state.apps.size < columns
                                     },
                                     onClick = { if (state.movingKey == null) showHidden = true },
                                 )
@@ -340,7 +365,7 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
                                 onFocused = {
                                     lastFocusedKey = CUSTOMIZE_KEY
                                     lastFocusedIndex = watchKeys.size + customizeOffset
-                                    firstAppRowFocused = customizeOffset < COLUMNS
+                                    firstAppRowFocused = customizeOffset < columns
                                 },
                                 onClick = { if (state.movingKey == null) showCustomize = true },
                             )
@@ -374,13 +399,26 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
         )
     }
 
+    if (showInputs && tvInputs.isNotEmpty()) {
+        TvInputsDialog(
+            inputs = tvInputs,
+            onSelectInput = { input ->
+                showInputs = false
+                TvInputs.openInput(context, input)
+            },
+            onDismiss = { showInputs = false },
+        )
+    }
+
     if (showCustomize) {
         CustomizeDialog(
             showWatchRow = state.showWatchRow,
+            appColumns = columns,
             apps = state.apps + state.hiddenApps,
             disabledWatchPackages = state.disabledWatchPackages,
             activeWatchPackages = state.activeWatchPackages,
             onToggleWatchRow = viewModel::setWatchRowVisible,
+            onSetAppColumns = viewModel::setAppColumns,
             onToggleWatchPackage = viewModel::setWatchPackageEnabled,
             onRefresh = viewModel::refresh,
             onDismiss = { showCustomize = false },

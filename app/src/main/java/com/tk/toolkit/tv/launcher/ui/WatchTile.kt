@@ -136,19 +136,34 @@ fun WatchTile(
                 }
             }
         }
-        val labelText = if (!item.subtitle.isNullOrBlank()) "${item.title} · ${item.subtitle}" else item.title
-        Text(
-            labelText,
-            style = MaterialTheme.typography.bodyMedium,
-            color = ToolkitColors.OnSurface,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 10.dp)
                 .alpha(labelAlpha),
-        )
+        ) {
+            Text(
+                item.title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = ToolkitColors.OnSurface,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                item.appName,
+                style = MaterialTheme.typography.bodySmall,
+                color = ToolkitColors.OnSurfaceMuted,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp),
+            )
+        }
     }
 }
 

@@ -10,6 +10,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
 import com.tk.toolkit.tv.MainActivity
 import com.tk.toolkit.tv.launcher.data.AppActions
+import com.tk.toolkit.tv.launcher.data.RemoteButtons
 
 /**
  * System-level helpers that need an accessibility service:
@@ -49,19 +50,23 @@ class ToolkitAccessibilityService : AccessibilityService() {
     }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
-        if (event.keyCode != KeyEvent.KEYCODE_HOME) return false
-        if (event.action == KeyEvent.ACTION_UP) {
-            val held = event.eventTime - event.downTime
-            if (held >= LONG_PRESS_MS) performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS) else openToolkit()
+        if (event.keyCode == KeyEvent.KEYCODE_HOME) {
+            if (!RemoteButtons.shouldOverrideHomeKey(this)) return false
+            if (event.action == KeyEvent.ACTION_UP) {
+                val held = event.eventTime - event.downTime
+                if (held >= LONG_PRESS_MS) performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS) else openToolkit()
+            }
+            return true
         }
-        return true
+        return RemoteButtons.handleKeyEvent(this, event)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         // Catches the stock home showing up some other way (boot, an app exiting to home).
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
             event.packageName == STOCK_LAUNCHER &&
-            event.className?.toString() == STOCK_HOME_ACTIVITY
+            event.className?.toString() == STOCK_HOME_ACTIVITY &&
+            RemoteButtons.shouldOverrideHomeKey(this)
         ) {
             openToolkit()
             return

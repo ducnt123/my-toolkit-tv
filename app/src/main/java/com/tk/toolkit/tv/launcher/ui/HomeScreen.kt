@@ -6,9 +6,15 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -55,6 +61,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -115,7 +124,9 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
         label = "watchRowCollapse",
     )
 
-    val scrollSpec = with(LocalDensity.current) { remember { minimalScrollSpec(28.dp.toPx()) } }
+    val scrollSpec = with(LocalDensity.current) {
+        remember { minimalScrollSpec(topMarginPx = 28.dp.toPx(), bottomMarginPx = 64.dp.toPx()) }
+    }
     val columns = state.appColumns.coerceIn(4, 6)
     val watchItems = if (state.showWatchRow) state.watchItems else emptyList()
     val watchKeys = watchItems.map { it.key }
@@ -160,18 +171,32 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
     }
 
     // Back cancels an active move; otherwise jumps to the first item of the current section
-    // (Continue Watching -> first watch item; Apps/Header -> first app).
+    // (Continue Watching -> first watch item; Apps/Header -> first app). If already at the
+    // first item with nowhere left to go back to, starts the screensaver / Ambient Mode if enabled.
     BackHandler {
         if (state.movingKey != null) {
             viewModel.endMove()
         } else {
-            focusJob?.cancel()
             val inWatchSection = watchRowFocused || (!headerFocused && lastFocusedKey in watchKeys)
-            focusJob = scope.launch {
-                if (inWatchSection && watchItems.isNotEmpty()) {
-                    focusFirstWatchItem()
-                } else {
-                    focusFirstApp()
+            val firstWatchKey = watchItems.firstOrNull()?.key
+            val firstAppKey = state.apps.firstOrNull()?.packageName ?: gridKeys.firstOrNull()
+            val alreadyAtSectionStart = if (inWatchSection && firstWatchKey != null) {
+                !headerFocused && lastFocusedKey == firstWatchKey
+            } else {
+                !headerFocused && lastFocusedKey == firstAppKey
+            }
+            if (alreadyAtSectionStart) {
+                if (state.backToAmbient) {
+                    AppActions.startScreensaver(context)
+                }
+            } else {
+                focusJob?.cancel()
+                focusJob = scope.launch {
+                    if (inWatchSection && watchItems.isNotEmpty()) {
+                        focusFirstWatchItem()
+                    } else {
+                        focusFirstApp()
+                    }
                 }
             }
         }
@@ -264,8 +289,14 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(columns),
                     state = gridState,
-                    // Generous padding so the enlarged focused/moving tile is never clipped at the edges.
-                    contentPadding = PaddingValues(horizontal = GRID_PADDING_X, vertical = 28.dp),
+                    // Generous padding so the enlarged focused/moving tile and bottom app label
+                    // sit comfortably inside the TV safe area without being clipped or faded out.
+                    contentPadding = PaddingValues(
+                        start = GRID_PADDING_X,
+                        end = GRID_PADDING_X,
+                        top = 28.dp,
+                        bottom = 56.dp,
+                    ),
                     horizontalArrangement = Arrangement.spacedBy(TILE_SPACING),
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                     modifier = Modifier
@@ -376,6 +407,15 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
         }
 
         AnimatedVisibility(
+            visible = !state.loaded,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.Center),
+        ) {
+            LoadingIndicator()
+        }
+
+        AnimatedVisibility(
             visible = state.movingKey != null,
             enter = fadeIn() + slideInVertically { it },
             exit = fadeOut() + slideOutVertically { it },
@@ -414,12 +454,22 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
         CustomizeDialog(
             showWatchRow = state.showWatchRow,
             appColumns = columns,
+            backToAmbient = state.backToAmbient,
             apps = state.apps + state.hiddenApps,
             disabledWatchPackages = state.disabledWatchPackages,
             activeWatchPackages = state.activeWatchPackages,
+            remoteButtons = state.remoteButtons,
+            customKeyMappings = state.customKeyMappings,
+            overrideHomeKey = state.overrideHomeKey,
             onToggleWatchRow = viewModel::setWatchRowVisible,
             onSetAppColumns = viewModel::setAppColumns,
+            onToggleBackToAmbient = viewModel::setBackToAmbientEnabled,
             onToggleWatchPackage = viewModel::setWatchPackageEnabled,
+            onSetRemoteButtonTarget = viewModel::setRemoteButtonTarget,
+            onSetRemoteButtonCustomKey = viewModel::setRemoteButtonCustomKey,
+            onUpsertCustomKeyMapping = viewModel::upsertCustomKeyMapping,
+            onRemoveCustomKeyMapping = viewModel::removeCustomKeyMapping,
+            onToggleOverrideHomeKey = viewModel::setOverrideHomeKeyEnabled,
             onRefresh = viewModel::refresh,
             onDismiss = { showCustomize = false },
         )
@@ -495,4 +545,49 @@ private fun MoveHint() {
             .border(1.dp, Color.White.copy(alpha = 0.1f), shape)
             .padding(horizontal = 22.dp, vertical = 12.dp),
     )
+}
+
+@Composable
+private fun LoadingIndicator() {
+    val transition = rememberInfiniteTransition(label = "loading")
+    val angle by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 850, easing = LinearEasing),
+        ),
+        label = "spinnerAngle",
+    )
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Canvas(Modifier.size(44.dp)) {
+            val stroke = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round)
+            drawCircle(
+                color = ToolkitColors.OnSurface.copy(alpha = 0.1f),
+                style = stroke,
+            )
+            rotate(angle) {
+                drawArc(
+                    brush = Brush.sweepGradient(
+                        listOf(
+                            Color.Transparent,
+                            ToolkitColors.Accent.copy(alpha = 0.35f),
+                            ToolkitColors.Accent,
+                        )
+                    ),
+                    startAngle = 15f,
+                    sweepAngle = 270f,
+                    useCenter = false,
+                    style = stroke,
+                )
+            }
+        }
+        Text(
+            "Đang tải ứng dụng...",
+            style = MaterialTheme.typography.bodyMedium,
+            color = ToolkitColors.OnSurfaceMuted,
+        )
+    }
 }

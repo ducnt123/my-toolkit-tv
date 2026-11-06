@@ -6,13 +6,16 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
+import com.tk.toolkit.tv.core.ToolkitAccessibilityService
 import com.tk.toolkit.tv.core.ToolkitApp
 import com.tk.toolkit.tv.launcher.LauncherViewModel
+import com.tk.toolkit.tv.launcher.data.RemoteButtons
 
 class MainActivity : ComponentActivity() {
 
@@ -78,6 +81,13 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         launcherViewModel.refresh()
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (ToolkitAccessibilityService.instance == null && RemoteButtons.handleKeyEvent(this, event)) {
+            return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onDestroy() {

@@ -27,6 +27,36 @@ object AppActions {
     fun openSystemSettings(context: Context) =
         context.safeStart(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 
+    /** Starts the Android TV / Google TV screensaver (Ambient Mode / Daydream). */
+    fun startScreensaver(context: Context) {
+        val candidates = listOf(
+            Intent("com.google.android.pano.action.SLEEP")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            Intent(Intent.ACTION_MAIN)
+                .setClassName("com.android.systemui", "com.android.systemui.Somnambulator")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            Intent(Settings.ACTION_DREAM_SETTINGS)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+        val match = candidates.firstOrNull { it.resolveActivity(context.packageManager) != null }
+            ?: candidates.first()
+        context.safeStart(match)
+    }
+
+    /** Opens Android TV's Accounts & Sign-in settings (for Profile Switch button when stock launcher is disabled). */
+    fun openAccountsSettings(context: Context) {
+        val candidates = listOf(
+            Intent("com.google.android.apps.tv.launcherx.profile.LOCK_SCREEN_MGT")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            Intent(Settings.ACTION_SYNC_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            Intent(Settings.ACTION_ADD_ACCOUNT).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+        val match = candidates.firstOrNull { it.resolveActivity(context.packageManager) != null }
+            ?: candidates.last()
+        context.safeStart(match)
+    }
+
     /** Opens Android TV's Network & Internet settings (Wi-Fi and Ethernet). */
     fun openNetworkSettings(context: Context) {
         val candidates = listOf(

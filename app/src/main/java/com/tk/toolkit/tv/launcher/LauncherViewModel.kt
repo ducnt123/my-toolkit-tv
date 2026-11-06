@@ -6,8 +6,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tk.toolkit.tv.launcher.data.AppRepository
 import com.tk.toolkit.tv.launcher.data.ContinueWatching
+import com.tk.toolkit.tv.launcher.data.CustomKeyMapping
 import com.tk.toolkit.tv.launcher.data.LauncherApp
 import com.tk.toolkit.tv.launcher.data.LauncherPrefs
+import com.tk.toolkit.tv.launcher.data.RemoteButton
+import com.tk.toolkit.tv.launcher.data.RemoteButtonConfig
+import com.tk.toolkit.tv.launcher.data.RemoteButtons
 import com.tk.toolkit.tv.launcher.data.WatchItem
 import com.tk.toolkit.tv.launcher.data.WatchNextRepository
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +38,14 @@ data class LauncherState(
     val disabledWatchPackages: Set<String> = emptySet(),
     /** Packages that currently have at least one item in Continue Watching (before source filtering). */
     val activeWatchPackages: Set<String> = emptySet(),
+    /** Remote button mappings and learned keycodes. */
+    val remoteButtons: List<RemoteButtonConfig> = emptyList(),
+    /** User-defined custom remote key mappings. */
+    val customKeyMappings: List<CustomKeyMapping> = emptyList(),
+    /** Whether AccessibilityService overrides the Home button. */
+    val overrideHomeKey: Boolean = false,
+    /** Whether pressing Back at the first item starts the screensaver / Ambient Mode. */
+    val backToAmbient: Boolean = true,
     val loaded: Boolean = false,
     /** App package or Continue Watching key currently being repositioned, if any. */
     val movingKey: String? = null,
@@ -52,6 +64,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             showWatchRow = prefs.isWatchRowVisible(),
             appColumns = prefs.appColumns(),
             disabledWatchPackages = prefs.disabledWatchPackages(),
+            remoteButtons = prefs.remoteButtonConfigs(),
+            customKeyMappings = prefs.customKeyMappings(),
+            overrideHomeKey = RemoteButtons.shouldOverrideHomeKey(application),
+            backToAmbient = prefs.isBackToAmbientEnabled(),
         ),
     )
     val state: StateFlow<LauncherState> = _state.asStateFlow()
@@ -77,6 +93,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val showWatch = prefs.isWatchRowVisible()
             val columns = prefs.appColumns()
             val disabledWatch = prefs.disabledWatchPackages()
+            val remoteConfigs = prefs.remoteButtonConfigs()
+            val customMappings = prefs.customKeyMappings()
+            val overrideHome = RemoteButtons.shouldOverrideHomeKey(getApplication())
+            val backToAmbient = prefs.isBackToAmbientEnabled()
             _state.update { current ->
                 // Don't reshuffle under the user while they're moving something.
                 if (current.movingKey != null) current
@@ -87,6 +107,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     appColumns = columns,
                     disabledWatchPackages = disabledWatch,
                     activeWatchPackages = activePkgs,
+                    remoteButtons = remoteConfigs,
+                    customKeyMappings = customMappings,
+                    overrideHomeKey = overrideHome,
+                    backToAmbient = backToAmbient,
                     homeRequestCount = current.homeRequestCount,
                 )
             }
@@ -126,6 +150,46 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val clamped = columns.coerceIn(4, 6)
         prefs.setAppColumns(clamped)
         _state.update { it.copy(appColumns = clamped) }
+    }
+
+    fun setRemoteButtonTarget(button: RemoteButton, target: String) {
+        prefs.setRemoteButtonTarget(button, target)
+        _state.update { it.copy(remoteButtons = prefs.remoteButtonConfigs()) }
+    }
+
+    fun setRemoteButtonCustomKey(button: RemoteButton, keyCode: Int, scanCode: Int) {
+        prefs.setRemoteButtonCustomKey(button, keyCode, scanCode)
+        _state.update {
+            it.copy(
+                remoteButtons = prefs.remoteButtonConfigs(),
+                customKeyMappings = prefs.customKeyMappings(),
+            )
+        }
+    }
+
+    fun upsertCustomKeyMapping(keyCode: Int, scanCode: Int, target: String) {
+        prefs.upsertCustomKeyMapping(keyCode, scanCode, target)
+        _state.update {
+            it.copy(
+                remoteButtons = prefs.remoteButtonConfigs(),
+                customKeyMappings = prefs.customKeyMappings(),
+            )
+        }
+    }
+
+    fun removeCustomKeyMapping(keyCode: Int, scanCode: Int) {
+        prefs.removeCustomKeyMapping(keyCode, scanCode)
+        _state.update { it.copy(customKeyMappings = prefs.customKeyMappings()) }
+    }
+
+    fun setOverrideHomeKeyEnabled(enabled: Boolean) {
+        prefs.setOverrideHomeKeyEnabled(enabled)
+        _state.update { it.copy(overrideHomeKey = enabled) }
+    }
+
+    fun setBackToAmbientEnabled(enabled: Boolean) {
+        prefs.setBackToAmbientEnabled(enabled)
+        _state.update { it.copy(backToAmbient = enabled) }
     }
 
     fun setWatchPackageEnabled(packageName: String, enabled: Boolean) {
@@ -215,6 +279,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 appColumns = current.appColumns,
                 disabledWatchPackages = current.disabledWatchPackages,
                 activeWatchPackages = current.activeWatchPackages,
+                remoteButtons = current.remoteButtons,
+                customKeyMappings = current.customKeyMappings,
+                overrideHomeKey = current.overrideHomeKey,
+                backToAmbient = current.backToAmbient,
                 homeRequestCount = current.homeRequestCount,
             )
         }

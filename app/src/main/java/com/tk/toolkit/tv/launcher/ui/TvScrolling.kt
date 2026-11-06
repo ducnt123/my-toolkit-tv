@@ -17,13 +17,16 @@ import androidx.compose.ui.unit.Dp
  * pivots every focus change to 30% of the container, which scrolls on every key press.
  */
 @OptIn(ExperimentalFoundationApi::class)
-fun minimalScrollSpec(marginPx: Float) = object : BringIntoViewSpec {
+fun minimalScrollSpec(
+    topMarginPx: Float,
+    bottomMarginPx: Float = topMarginPx,
+) = object : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
-        val leading = offset - marginPx
-        val trailing = offset + size + marginPx
+        val leading = offset - topMarginPx
+        val trailing = offset + size + bottomMarginPx
         return when {
             leading >= 0f && trailing <= containerSize -> 0f
-            size + 2 * marginPx > containerSize -> leading
+            size + topMarginPx + bottomMarginPx > containerSize -> leading
             leading < 0f -> leading
             else -> trailing - containerSize
         }

@@ -6,8 +6,10 @@ import android.graphics.drawable.Drawable
 import android.media.tv.TvContract
 import android.media.tv.TvInputInfo
 import android.media.tv.TvInputManager
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -17,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
+import com.tk.toolkit.tv.R
 import com.tk.toolkit.tv.launcher.data.AppActions.safeStart
 
 data class TvInputEntry(
@@ -30,25 +33,23 @@ data class TvInputEntry(
     val packageName: String,
     val icon: ImageBitmap?,
 ) {
-    val displayTitle: String
-        get() = when {
-            !customLabel.isNullOrBlank() && !customLabel.equals(label, ignoreCase = true) ->
-                "$customLabel ($label)"
-            label.isNotBlank() -> label
-            isLiveTv -> "Truyền hình (Live TV)"
-            type == TvInputInfo.TYPE_HDMI -> "HDMI"
-            type == TvInputInfo.TYPE_COMPOSITE -> "AV"
-            type == TvInputInfo.TYPE_COMPONENT -> "Component"
-            else -> "Ngõ vào"
-        }
+    fun displayTitle(context: Context): String = when {
+        !customLabel.isNullOrBlank() && !customLabel.equals(label, ignoreCase = true) ->
+            "$customLabel ($label)"
+        label.isNotBlank() -> label
+        isLiveTv -> context.getString(R.string.tv_input_live_tv)
+        type == TvInputInfo.TYPE_HDMI -> "HDMI"
+        type == TvInputInfo.TYPE_COMPOSITE -> "AV"
+        type == TvInputInfo.TYPE_COMPONENT -> "Component"
+        else -> context.getString(R.string.tv_input_default_name)
+    }
 
-    val stateLabel: String
-        get() = when {
-            isLiveTv -> "Truyền hình trực tiếp"
-            state == TvInputManager.INPUT_STATE_CONNECTED -> "Đã kết nối"
-            state == TvInputManager.INPUT_STATE_CONNECTED_STANDBY -> "Thiết bị đang chờ"
-            else -> "Chưa kết nối tín hiệu"
-        }
+    fun stateLabel(context: Context): String = when {
+        isLiveTv -> context.getString(R.string.tv_input_state_live_tv)
+        state == TvInputManager.INPUT_STATE_CONNECTED -> context.getString(R.string.tv_input_state_connected)
+        state == TvInputManager.INPUT_STATE_CONNECTED_STANDBY -> context.getString(R.string.tv_input_state_standby)
+        else -> context.getString(R.string.tv_input_state_disconnected)
+    }
 }
 
 object TvInputs {
@@ -60,16 +61,16 @@ object TvInputs {
      */
     fun loadInputs(context: Context): List<TvInputEntry> {
         val manager = context.getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager
-            ?: return emptyList()
-        val rawList = runCatching { manager.tvInputList }.getOrNull().orEmpty()
-        if (rawList.isEmpty()) return emptyList()
+        val rawList = runCatching { manager?.tvInputList }.getOrNull().orEmpty()
 
         // A device is a TV with inputs only if it exposes at least one hardware/passthrough input
         // (TV boxes only have HDMI output, never passthrough inputs).
+        // On the Android TV emulator, simulate hardware HDMI/AV inputs for testing.
         val hasPassthrough = rawList.any { it.isPassthroughInput }
-        if (!hasPassthrough) return emptyList()
+        val runningOnEmulator = isEmulator()
+        if (!hasPassthrough && !runningOnEmulator) return emptyList()
 
-        val entries = rawList
+        val systemEntries = rawList
             .filter { info ->
                 val notHidden = runCatching { !info.isHidden(context) }.getOrDefault(true)
                 val pkg = info.serviceInfo?.packageName.orEmpty()
@@ -81,8 +82,8 @@ object TvInputs {
             .map { info ->
                 val label = runCatching { info.loadLabel(context)?.toString()?.trim().orEmpty() }.getOrDefault("")
                 val customLabel = runCatching { info.loadCustomLabel(context)?.toString()?.trim() }.getOrNull()
-                val state = runCatching { manager.getInputState(info.id) }
-                    .getOrDefault(TvInputManager.INPUT_STATE_CONNECTED)
+                val state = runCatching { manager?.getInputState(info.id) }
+                    .getOrNull() ?: TvInputManager.INPUT_STATE_CONNECTED
                 val icon = runCatching { info.loadIcon(context)?.toBitmapSafely() }.getOrNull()
                 val isLive = isLiveTvInput(info, label, customLabel)
                 TvInputEntry(
@@ -98,15 +99,83 @@ object TvInputs {
                 )
             }
 
+        val entries = if (!hasPassthrough && runningOnEmulator) {
+            systemEntries + simulatedEmulatorInputs()
+        } else {
+            systemEntries
+        }
+
         return entries.sortedWith(
             compareBy<TvInputEntry> { !it.isLiveTv }
                 .thenBy { stateRank(it.state) }
                 .thenBy { typeRank(it.type) }
-                .thenBy { it.displayTitle.lowercase() },
+                .thenBy { it.displayTitle(context).lowercase() },
         )
     }
 
+    private fun simulatedEmulatorInputs(): List<TvInputEntry> = listOf(
+        TvInputEntry(
+            id = "emulator:hdmi1",
+            label = "HDMI 1",
+            customLabel = "VTVcab STB",
+            type = TvInputInfo.TYPE_HDMI,
+            isPassthrough = true,
+            isLiveTv = false,
+            state = TvInputManager.INPUT_STATE_CONNECTED,
+            packageName = "",
+            icon = null,
+        ),
+        TvInputEntry(
+            id = "emulator:hdmi2",
+            label = "HDMI 2",
+            customLabel = null,
+            type = TvInputInfo.TYPE_HDMI,
+            isPassthrough = true,
+            isLiveTv = false,
+            state = TvInputManager.INPUT_STATE_DISCONNECTED,
+            packageName = "",
+            icon = null,
+        ),
+        TvInputEntry(
+            id = "emulator:av",
+            label = "AV",
+            customLabel = null,
+            type = TvInputInfo.TYPE_COMPOSITE,
+            isPassthrough = true,
+            isLiveTv = false,
+            state = TvInputManager.INPUT_STATE_DISCONNECTED,
+            packageName = "",
+            icon = null,
+        ),
+    )
+
+    private fun isEmulator(): Boolean {
+        val fingerprint = Build.FINGERPRINT.lowercase()
+        val model = Build.MODEL.lowercase()
+        val hardware = Build.HARDWARE.lowercase()
+        val product = Build.PRODUCT.lowercase()
+        return fingerprint.startsWith("generic") ||
+            fingerprint.contains("emulator") ||
+            fingerprint.contains("sdk_gphone") ||
+            fingerprint.contains("sdk_google_atv") ||
+            hardware.contains("ranchu") ||
+            hardware.contains("goldfish") ||
+            model.contains("emulator") ||
+            model.contains("android sdk built for") ||
+            model.contains("sdk_google_atv") ||
+            product.contains("sdk_google_atv") ||
+            product.contains("emulator")
+    }
+
     fun openInput(context: Context, input: TvInputEntry) {
+        if (input.id.startsWith("emulator:")) {
+            Toast.makeText(
+                context,
+                "${context.getString(R.string.tv_inputs_title)}: ${input.displayTitle(context)}",
+                Toast.LENGTH_SHORT,
+            ).show()
+            return
+        }
         val candidates = buildList {
             if (input.isPassthrough) {
                 add(

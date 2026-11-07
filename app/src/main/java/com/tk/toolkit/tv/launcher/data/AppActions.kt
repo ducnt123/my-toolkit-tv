@@ -6,6 +6,7 @@ import android.content.Intent
 import android.provider.Settings
 import android.widget.Toast
 import androidx.core.net.toUri
+import com.tk.toolkit.tv.R
 import com.tk.toolkit.tv.core.ToolkitAccessibilityService
 
 /** System-level actions the launcher can perform on an app. */
@@ -93,9 +94,10 @@ object AppActions {
         if (service != null) {
             service.forceStop(packageName)
         } else {
+            val localized = LocaleHelper.wrapContext(context)
             Toast.makeText(
-                context,
-                "Turn on \"Toolkit\" in Settings › Accessibility for one-click force stop",
+                localized,
+                localized.getString(R.string.toast_enable_accessibility_force_stop),
                 Toast.LENGTH_LONG,
             ).show()
             openAppInfo(context, packageName)
@@ -106,9 +108,11 @@ object AppActions {
         try {
             startActivity(intent)
         } catch (_: ActivityNotFoundException) {
-            Toast.makeText(this, "Couldn't open that", Toast.LENGTH_SHORT).show()
+            val localized = LocaleHelper.wrapContext(this)
+            Toast.makeText(localized, localized.getString(R.string.toast_could_not_open), Toast.LENGTH_SHORT).show()
         } catch (_: SecurityException) {
-            Toast.makeText(this, "Not allowed", Toast.LENGTH_SHORT).show()
+            val localized = LocaleHelper.wrapContext(this)
+            Toast.makeText(localized, localized.getString(R.string.toast_not_allowed), Toast.LENGTH_SHORT).show()
         }
     }
 }

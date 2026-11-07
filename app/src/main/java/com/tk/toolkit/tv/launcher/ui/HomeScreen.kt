@@ -65,8 +65,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -74,10 +76,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.tk.toolkit.tv.R
 import com.tk.toolkit.tv.launcher.LauncherViewModel
 import com.tk.toolkit.tv.launcher.data.AppActions
 import com.tk.toolkit.tv.launcher.data.AppActions.safeStart
 import com.tk.toolkit.tv.launcher.data.LauncherApp
+import com.tk.toolkit.tv.launcher.data.LocaleHelper
 import com.tk.toolkit.tv.launcher.data.TvInputs
 import com.tk.toolkit.tv.launcher.data.WatchItem
 import com.tk.toolkit.tv.launcher.data.rememberTvInputs
@@ -95,6 +99,28 @@ private const val APPS_TITLE_KEY = "toolkit:apps-title"
 @Composable
 fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val baseContext = LocalContext.current
+    val context = remember(baseContext, state.language) {
+        LocaleHelper.wrapContext(baseContext, state.language.code)
+    }
+    val localizedConfiguration = remember(context) {
+        context.resources.configuration
+    }
+
+    CompositionLocalProvider(
+        LocalContext provides context,
+        LocalConfiguration provides localizedConfiguration,
+    ) {
+        HomeScreenContent(viewModel = viewModel, state = state)
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun HomeScreenContent(
+    viewModel: LauncherViewModel,
+    state: com.tk.toolkit.tv.launcher.LauncherState,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val gridState = rememberLazyGridState()
@@ -273,6 +299,7 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
                 },
         ) {
             ClockHeader(
+                language = state.language,
                 onOpenNetwork = { AppActions.openNetworkSettings(context) },
                 onOpenAudioOutput = { AppActions.openAudioOutput(context) },
                 onOpenSettings = { AppActions.openSystemSettings(context) },
@@ -306,7 +333,7 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
                     if (state.loaded) {
                         if (watchItems.isNotEmpty()) {
                             item(key = WATCH_TITLE_KEY, span = { GridItemSpan(maxLineSpan) }) {
-                                SectionTitle("Tiếp tục xem", accentBar = true)
+                                SectionTitle(stringResource(R.string.section_continue_watching), accentBar = true)
                             }
                             item(key = WATCH_ROW_KEY, span = { GridItemSpan(maxLineSpan) }) {
                                 WatchRow(
@@ -319,6 +346,7 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
                                     onFocused = { item ->
                                         lastFocusedKey = item.key
                                         lastFocusedIndex = watchKeys.indexOf(item.key)
+                                        ToolkitColors.focusedAmbientColor = item.glow
                                     },
                                     onFocusInRowChanged = { watchRowFocused = it },
                                     onClick = { item ->
@@ -344,7 +372,7 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
                         }
                         // Full width, so it also starts the apps on their own row.
                         item(key = APPS_TITLE_KEY, span = { GridItemSpan(maxLineSpan) }) {
-                            SectionTitle("Ứng dụng", accentBar = false)
+                            SectionTitle(stringResource(R.string.section_apps), accentBar = false)
                         }
                         itemsIndexed(state.apps, key = { _, app -> app.packageName }) { index, app ->
                             val isMoving = app.packageName == state.movingKey
@@ -359,6 +387,7 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
                                     lastFocusedKey = app.packageName
                                     lastFocusedIndex = watchKeys.size + index
                                     firstAppRowFocused = index < columns
+                                    ToolkitColors.focusedAmbientColor = app.accent
                                 },
                                 onClick = {
                                     if (state.movingKey == null) context.safeStart(viewModel.launchIntent(app))
@@ -383,6 +412,7 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
                                         lastFocusedKey = MORE_APPS_KEY
                                         lastFocusedIndex = watchKeys.size + state.apps.size
                                         firstAppRowFocused = state.apps.size < columns
+                                        ToolkitColors.focusedAmbientColor = ToolkitColors.GlowA
                                     },
                                     onClick = { if (state.movingKey == null) showHidden = true },
                                 )
@@ -397,6 +427,7 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
                                     lastFocusedKey = CUSTOMIZE_KEY
                                     lastFocusedIndex = watchKeys.size + customizeOffset
                                     firstAppRowFocused = customizeOffset < columns
+                                    ToolkitColors.focusedAmbientColor = ToolkitColors.GlowA
                                 },
                                 onClick = { if (state.movingKey == null) showCustomize = true },
                             )
@@ -455,6 +486,14 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
             showWatchRow = state.showWatchRow,
             appColumns = columns,
             backToAmbient = state.backToAmbient,
+            language = state.language,
+            themePalette = state.themePalette,
+            dynamicAmbientColor = state.dynamicAmbientColor,
+            hasCustomWallpaper = state.customWallpaper != null,
+            autoLaunchTarget = state.autoLaunchTarget,
+            autoLaunchOnBoot = state.autoLaunchOnBoot,
+            autoLaunchOnWake = state.autoLaunchOnWake,
+            tvInputs = tvInputs,
             apps = state.apps + state.hiddenApps,
             disabledWatchPackages = state.disabledWatchPackages,
             activeWatchPackages = state.activeWatchPackages,
@@ -464,6 +503,17 @@ fun HomeScreen(viewModel: LauncherViewModel = viewModel()) {
             onToggleWatchRow = viewModel::setWatchRowVisible,
             onSetAppColumns = viewModel::setAppColumns,
             onToggleBackToAmbient = viewModel::setBackToAmbientEnabled,
+            onSetLanguage = viewModel::setLanguage,
+            onSetThemePalette = viewModel::setThemePalette,
+            onSetDynamicAmbient = viewModel::setDynamicAmbientEnabled,
+            onSetWallpaperFromUri = viewModel::setWallpaperFromUri,
+            onSetWallpaperFromFile = viewModel::setWallpaperFromFile,
+            onSetWallpaperFromUrl = viewModel::setWallpaperFromUrl,
+            onClearWallpaper = viewModel::clearCustomWallpaper,
+            onSetAutoLaunchTarget = viewModel::setAutoLaunchTarget,
+            onSetAutoLaunchOnBoot = viewModel::setAutoLaunchOnBootEnabled,
+            onSetAutoLaunchOnWake = viewModel::setAutoLaunchOnWakeEnabled,
+            onRestoreCompleted = viewModel::reloadAfterRestore,
             onToggleWatchPackage = viewModel::setWatchPackageEnabled,
             onSetRemoteButtonTarget = viewModel::setRemoteButtonTarget,
             onSetRemoteButtonCustomKey = viewModel::setRemoteButtonCustomKey,
@@ -537,7 +587,7 @@ private fun SectionTitle(text: String, accentBar: Boolean) {
 private fun MoveHint() {
     val shape = RoundedCornerShape(50)
     Text(
-        "Use the arrows to move  ·  Press OK to drop",
+        stringResource(R.string.move_hint),
         style = MaterialTheme.typography.bodyMedium,
         color = ToolkitColors.OnSurface,
         modifier = Modifier
@@ -585,7 +635,7 @@ private fun LoadingIndicator() {
             }
         }
         Text(
-            "Đang tải ứng dụng...",
+            stringResource(R.string.loading_apps),
             style = MaterialTheme.typography.bodyMedium,
             color = ToolkitColors.OnSurfaceMuted,
         )

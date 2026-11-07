@@ -23,12 +23,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.tk.toolkit.tv.R
 import com.tk.toolkit.tv.launcher.data.LauncherApp
+import com.tk.toolkit.tv.launcher.data.LocaleHelper
 import com.tk.toolkit.tv.ui.theme.ToolkitColors
 
 private const val HIDDEN_COLUMNS = 4
@@ -48,56 +51,58 @@ fun HiddenAppsDialog(
     val scrollSpec = with(LocalDensity.current) { remember { minimalScrollSpec(16.dp.toPx()) } }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        // Focus the first app on open, and again if the focused app gets unhidden.
-        LaunchedEffect(apps.map { it.packageName }) {
-            val keys = apps.map { it.packageName }
-            if (keys.isEmpty() || lastFocused[0] in keys) return@LaunchedEffect
-            focusRequesters.getOrPut(keys.first()) { FocusRequester() }.requestFocusWhenReady()
-        }
-        Column(
-            Modifier
-                .width(800.dp)
-                .clip(PanelShape)
-                .background(ToolkitColors.SurfaceRaised)
-                .border(1.dp, Color.White.copy(alpha = 0.08f), PanelShape)
-                .padding(top = 28.dp),
-        ) {
-            Text(
-                "Ứng dụng khác",
-                style = MaterialTheme.typography.titleLarge,
-                color = ToolkitColors.OnSurface,
-                modifier = Modifier.padding(horizontal = 28.dp),
-            )
-            Text(
-                "Ứng dụng bị ẩn khỏi màn hình chính · nhấn giữ để hiện lại",
-                style = MaterialTheme.typography.bodyMedium,
-                color = ToolkitColors.OnSurfaceMuted,
-                modifier = Modifier.padding(top = 4.dp, start = 28.dp, end = 28.dp),
-            )
-            CompositionLocalProvider(LocalBringIntoViewSpec provides scrollSpec) {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(HIDDEN_COLUMNS),
-                    // Room for the focused tile's glow.
-                    contentPadding = PaddingValues(horizontal = 28.dp, vertical = 28.dp),
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(24.dp),
-                    modifier = Modifier.heightIn(max = 380.dp),
-                ) {
-                    itemsIndexed(apps, key = { _, app -> app.packageName }) { index, app ->
-                        AppTile(
-                            app = app,
-                            index = index,
-                            columns = HIDDEN_COLUMNS,
-                            isMoving = false,
-                            dimmed = false,
-                            focusRequester = focusRequesters.getOrPut(app.packageName) { FocusRequester() },
-                            onFocused = { lastFocused[0] = app.packageName },
-                            onClick = { onLaunch(app) },
-                            onLongClick = { onLongPress(app) },
-                            onMoveBy = {},
-                            onDrop = {},
-                            modifier = Modifier.animateItem(),
-                        )
+        LocaleHelper.ProvideAppLocale {
+            // Focus the first app on open, and again if the focused app gets unhidden.
+            LaunchedEffect(apps.map { it.packageName }) {
+                val keys = apps.map { it.packageName }
+                if (keys.isEmpty() || lastFocused[0] in keys) return@LaunchedEffect
+                focusRequesters.getOrPut(keys.first()) { FocusRequester() }.requestFocusWhenReady()
+            }
+            Column(
+                Modifier
+                    .width(800.dp)
+                    .clip(PanelShape)
+                    .background(ToolkitColors.SurfaceRaised)
+                    .border(1.dp, Color.White.copy(alpha = 0.08f), PanelShape)
+                    .padding(top = 28.dp),
+            ) {
+                Text(
+                    stringResource(R.string.hidden_apps_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = ToolkitColors.OnSurface,
+                    modifier = Modifier.padding(horizontal = 28.dp),
+                )
+                Text(
+                    stringResource(R.string.hidden_apps_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = ToolkitColors.OnSurfaceMuted,
+                    modifier = Modifier.padding(top = 4.dp, start = 28.dp, end = 28.dp),
+                )
+                CompositionLocalProvider(LocalBringIntoViewSpec provides scrollSpec) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(HIDDEN_COLUMNS),
+                        // Room for the focused tile's glow.
+                        contentPadding = PaddingValues(horizontal = 28.dp, vertical = 28.dp),
+                        horizontalArrangement = Arrangement.spacedBy(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(24.dp),
+                        modifier = Modifier.heightIn(max = 380.dp),
+                    ) {
+                        itemsIndexed(apps, key = { _, app -> app.packageName }) { index, app ->
+                            AppTile(
+                                app = app,
+                                index = index,
+                                columns = HIDDEN_COLUMNS,
+                                isMoving = false,
+                                dimmed = false,
+                                focusRequester = focusRequesters.getOrPut(app.packageName) { FocusRequester() },
+                                onFocused = { lastFocused[0] = app.packageName },
+                                onClick = { onLaunch(app) },
+                                onLongClick = { onLongPress(app) },
+                                onMoveBy = {},
+                                onDrop = {},
+                                modifier = Modifier.animateItem(),
+                            )
+                        }
                     }
                 }
             }

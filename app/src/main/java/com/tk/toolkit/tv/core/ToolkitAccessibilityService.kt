@@ -1,15 +1,22 @@
 package com.tk.toolkit.tv.core
 
 import android.accessibilityservice.AccessibilityService
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Handler
 import android.os.Looper
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import com.tk.toolkit.tv.MainActivity
+import com.tk.toolkit.tv.R
 import com.tk.toolkit.tv.launcher.data.AppActions
+import com.tk.toolkit.tv.launcher.data.AutoLaunchManager
+import com.tk.toolkit.tv.launcher.data.LocaleHelper
 import com.tk.toolkit.tv.launcher.data.RemoteButtons
 
 /**
@@ -27,11 +34,33 @@ class ToolkitAccessibilityService : AccessibilityService() {
     private var step = Step.PressForceStop
     private val timeout = Runnable { finish(null) }
 
+    private val screenWakeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                Intent.ACTION_SCREEN_OFF -> AutoLaunchManager.onScreenOff()
+                Intent.ACTION_SCREEN_ON -> AutoLaunchManager.onScreenOn(context)
+            }
+        }
+    }
+
     override fun onServiceConnected() {
         instance = this
+        runCatching {
+            ContextCompat.registerReceiver(
+                this,
+                screenWakeReceiver,
+                IntentFilter().apply {
+                    addAction(Intent.ACTION_SCREEN_OFF)
+                    addAction(Intent.ACTION_SCREEN_ON)
+                },
+                ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
+        }
+        AutoLaunchManager.checkBootLaunch(this)
     }
 
     override fun onDestroy() {
+        runCatching { unregisterReceiver(screenWakeReceiver) }
         if (instance === this) instance = null
         super.onDestroy()
     }
@@ -78,7 +107,7 @@ class ToolkitAccessibilityService : AccessibilityService() {
                 val node = root.findByText(FORCE_STOP_LABELS) ?: return
                 val clickable = node.clickableAncestor() ?: return
                 if (!clickable.isEnabled || !node.isEnabled) {
-                    finish("Already stopped")
+                    finish(R.string.toast_already_stopped)
                 } else if (clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
                     step = Step.Confirm
                 }
@@ -87,7 +116,7 @@ class ToolkitAccessibilityService : AccessibilityService() {
                 val node = root.findByText(CONFIRM_LABELS) ?: return
                 val clickable = node.clickableAncestor() ?: return
                 if (clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-                    finish("Force stopped")
+                    finish(R.string.toast_force_stopped)
                 }
             }
         }
@@ -100,13 +129,15 @@ class ToolkitAccessibilityService : AccessibilityService() {
         )
     }
 
-    private fun finish(message: String?) {
+    private fun finish(messageRes: Int?) {
         handler.removeCallbacks(timeout)
         val wasRunning = target != null
         target = null
         if (!wasRunning) return
         handler.postDelayed({ openToolkit() }, 250)
-        Toast.makeText(this, message ?: "Couldn't force stop — try from App info", Toast.LENGTH_SHORT).show()
+        val localized = LocaleHelper.wrapContext(this)
+        val msg = localized.getString(messageRes ?: R.string.toast_force_stop_failed)
+        Toast.makeText(localized, msg, Toast.LENGTH_SHORT).show()
     }
 
     private fun AccessibilityNodeInfo.findByText(labels: List<String>): AccessibilityNodeInfo? {
@@ -133,7 +164,7 @@ class ToolkitAccessibilityService : AccessibilityService() {
         private const val LONG_PRESS_MS = 600L
         private const val STOCK_LAUNCHER = "com.google.android.apps.tv.launcherx"
         private const val STOCK_HOME_ACTIVITY = "com.google.android.apps.tv.launcherx.home.HomeActivity"
-        private val FORCE_STOP_LABELS = listOf("Force stop")
-        private val CONFIRM_LABELS = listOf("OK")
+        private val FORCE_STOP_LABELS = listOf("Force stop", "Buộc dừng", "Bắt buộc dừng")
+        private val CONFIRM_LABELS = listOf("OK", "Ok", "Đồng ý")
     }
 }

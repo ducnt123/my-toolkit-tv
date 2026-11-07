@@ -5,18 +5,20 @@ import android.content.Intent
 import android.provider.Settings
 import android.view.KeyEvent
 import android.widget.Toast
+import androidx.annotation.StringRes
+import com.tk.toolkit.tv.R
 import com.tk.toolkit.tv.launcher.data.AppActions.safeStart
 
 enum class RemoteButton(
     val id: String,
-    val title: String,
-    val defaultActionLabel: String,
+    @param:StringRes val titleRes: Int,
+    @param:StringRes val defaultActionLabelRes: Int,
     val defaultKeyCodes: Set<Int>,
 ) {
     GUIDE(
         id = "guide",
-        title = "Phím Guide",
-        defaultActionLabel = "Mặc định (Mở Truyền hình / Live TV)",
+        titleRes = R.string.remote_btn_guide_title,
+        defaultActionLabelRes = R.string.remote_btn_guide_default,
         defaultKeyCodes = setOf(
             KeyEvent.KEYCODE_GUIDE,
             KeyEvent.KEYCODE_TV,
@@ -26,8 +28,8 @@ enum class RemoteButton(
     ),
     YOUTUBE(
         id = "youtube",
-        title = "Phím YouTube",
-        defaultActionLabel = "Mặc định (Mở YouTube / SmartTube)",
+        titleRes = R.string.remote_btn_youtube_title,
+        defaultActionLabelRes = R.string.remote_btn_youtube_default,
         defaultKeyCodes = setOf(
             289, // KEYCODE_VIDEO_APP_1 (Android 12+ TV dedicated video app button 1)
             297, // KEYCODE_FEATURED_APP_1 (Android 12+ TV featured app button 1)
@@ -36,8 +38,8 @@ enum class RemoteButton(
     ),
     SETTINGS(
         id = "settings",
-        title = "Phím Cài đặt",
-        defaultActionLabel = "Mặc định (Mở Cài đặt hệ thống)",
+        titleRes = R.string.remote_btn_settings_title,
+        defaultActionLabelRes = R.string.remote_btn_settings_default,
         defaultKeyCodes = setOf(
             KeyEvent.KEYCODE_SETTINGS,
             KeyEvent.KEYCODE_NOTIFICATION,
@@ -45,8 +47,8 @@ enum class RemoteButton(
     ),
     PROFILE(
         id = "profile",
-        title = "Phím Chuyển người dùng",
-        defaultActionLabel = "Mặc định (Mở Tài khoản & Đăng nhập)",
+        titleRes = R.string.remote_btn_profile_title,
+        defaultActionLabelRes = R.string.remote_btn_profile_default,
         defaultKeyCodes = setOf(
             KeyEvent.KEYCODE_PROFILE_SWITCH,
         ),
@@ -194,23 +196,25 @@ object RemoteButtons {
     }
 
     fun executeAction(context: Context, button: RemoteButton, target: String) {
+        val localized = LocaleHelper.wrapContext(context)
         when (target) {
             TARGET_DISABLED -> Unit
-            TARGET_DEFAULT -> executeDefaultAction(context, button)
-            else -> executeCustomTarget(context, target, button.title)
+            TARGET_DEFAULT -> executeDefaultAction(localized, button)
+            else -> executeCustomTarget(localized, target, localized.getString(button.titleRes))
         }
     }
 
     fun executeCustomTarget(context: Context, target: String, buttonName: String) {
+        val localized = LocaleHelper.wrapContext(context)
         when (target) {
-            ACTION_SYSTEM_SETTINGS -> AppActions.openSystemSettings(context)
-            ACTION_SYSTEM_ACCOUNTS -> AppActions.openAccountsSettings(context)
-            ACTION_LIVE_TV -> openDefaultGuide(context)
+            ACTION_SYSTEM_SETTINGS -> AppActions.openSystemSettings(localized)
+            ACTION_SYSTEM_ACCOUNTS -> AppActions.openAccountsSettings(localized)
+            ACTION_LIVE_TV -> openDefaultGuide(localized)
             else -> {
-                if (!launchPackage(context, target)) {
+                if (!launchPackage(localized, target)) {
                     Toast.makeText(
-                        context,
-                        "Không mở được ứng dụng đã gán cho $buttonName",
+                        localized,
+                        localized.getString(R.string.toast_cannot_open_assigned_app, buttonName),
                         Toast.LENGTH_SHORT,
                     ).show()
                 }
@@ -218,12 +222,12 @@ object RemoteButtons {
         }
     }
 
-    fun formatCustomTargetLabel(target: String, appsByPkg: Map<String, LauncherApp>): String =
+    fun formatCustomTargetLabel(context: Context, target: String, appsByPkg: Map<String, LauncherApp>): String =
         when (target) {
-            ACTION_SYSTEM_SETTINGS -> "Mở Cài đặt hệ thống"
-            ACTION_SYSTEM_ACCOUNTS -> "Mở Tài khoản & Đăng nhập"
-            ACTION_LIVE_TV -> "Mở Truyền hình / Live TV"
-            else -> "Mở ứng dụng: ${appsByPkg[target]?.label ?: target}"
+            ACTION_SYSTEM_SETTINGS -> context.getString(R.string.remote_action_system_settings)
+            ACTION_SYSTEM_ACCOUNTS -> context.getString(R.string.remote_action_system_accounts)
+            ACTION_LIVE_TV -> context.getString(R.string.remote_action_live_tv)
+            else -> context.getString(R.string.remote_target_open_app, appsByPkg[target]?.label ?: target)
         }
 
     private fun executeDefaultAction(context: Context, button: RemoteButton) {
@@ -248,7 +252,7 @@ object RemoteButtons {
         }
         Toast.makeText(
             context,
-            "Không tìm thấy YouTube. Hãy chọn ứng dụng trong Tùy chỉnh › Gán phím điều khiển",
+            context.getString(R.string.toast_youtube_not_found),
             Toast.LENGTH_LONG,
         ).show()
     }
@@ -269,7 +273,7 @@ object RemoteButtons {
         }
         Toast.makeText(
             context,
-            "Hãy gán ứng dụng cho Phím Guide trong Tùy chỉnh › Gán phím điều khiển",
+            context.getString(R.string.toast_guide_not_configured),
             Toast.LENGTH_LONG,
         ).show()
     }

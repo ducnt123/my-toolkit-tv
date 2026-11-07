@@ -1,0 +1,218 @@
+<resources>
+    <!-- App & Accessibility -->
+    <string name="app_name">Toolkit</string>
+    <string name="accessibility_service_description">Giúp mở Toolkit khi bấm phím Home, nhận diện các phím tắt trên điều khiển và tự động bấm nút \"Buộc dừng\" trong cài đặt hệ thống khi bạn chọn Bắt buộc dừng ứng dụng.</string>
+
+    <!-- Language names -->
+    <string name="lang_vi">Tiếng Việt</string>
+    <string name="lang_en">English / Tiếng Anh</string>
+
+    <!-- Common -->
+    <string name="common_selected">Đang chọn</string>
+    <string name="common_cancel">Hủy</string>
+
+    <!-- Home Screen & Header -->
+    <string name="section_continue_watching">Tiếp tục xem</string>
+    <string name="section_apps">Ứng dụng</string>
+    <string name="tile_more_apps">Ứng dụng khác</string>
+    <string name="tile_customize">Tùy chỉnh</string>
+    <string name="move_hint">Dùng phím mũi tên để di chuyển  ·  Bấm OK để đặt</string>
+    <string name="loading_apps">Đang tải ứng dụng…</string>
+    <string name="header_inputs">Ngõ vào</string>
+    <string name="header_network_ethernet">Mạng có dây</string>
+    <string name="header_network_wifi">Wi-Fi</string>
+    <string name="header_network_disconnected">Không có mạng</string>
+    <string name="header_audio_output">Đầu ra âm thanh</string>
+    <string name="header_settings">Cài đặt</string>
+
+    <!-- Hidden Apps Dialog -->
+    <string name="hidden_apps_title">Ứng dụng khác</string>
+    <string name="hidden_apps_subtitle">Ứng dụng bị ẩn khỏi màn hình chính · nhấn giữ để hiện lại</string>
+
+    <!-- App Actions Dialog & Toasts -->
+    <string name="app_action_unhide">Bỏ ẩn</string>
+    <string name="app_action_unhide_subtitle">Hiển thị lại trên màn hình chính</string>
+    <string name="app_action_move">Di chuyển</string>
+    <string name="app_action_move_subtitle">Thay đổi vị trí trên màn hình chính</string>
+    <string name="app_action_hide">Ẩn</string>
+    <string name="app_action_hide_subtitle">Di chuyển vào Ứng dụng khác</string>
+    <string name="app_action_info">Thông tin ứng dụng</string>
+    <string name="app_action_info_subtitle">Dung lượng, quyền và cài đặt khác</string>
+    <string name="app_action_force_stop">Bắt buộc dừng</string>
+    <string name="app_action_force_stop_subtitle">Đóng ứng dụng hoàn toàn</string>
+    <string name="app_action_uninstall_updates">Gỡ bản cập nhật</string>
+    <string name="app_action_uninstall_updates_subtitle">Khôi phục phiên bản gốc</string>
+    <string name="app_action_uninstall">Gỡ cài đặt</string>
+    <string name="app_action_uninstall_subtitle">Gỡ khỏi thiết bị này</string>
+    <string name="toast_enable_accessibility_force_stop">Hãy bật \"Toolkit\" trong Cài đặt › Trợ năng để tự động bắt buộc dừng</string>
+    <string name="toast_could_not_open">Không thể mở mục này</string>
+    <string name="toast_not_allowed">Không được phép thực hiện</string>
+    <string name="toast_already_stopped">Ứng dụng đã dừng sẵn</string>
+    <string name="toast_force_stopped">Đã bắt buộc dừng</string>
+    <string name="toast_force_stop_failed">Không thể bắt buộc dừng — hãy thử trong Thông tin ứng dụng</string>
+
+    <!-- Continue Watching Actions & Metadata -->
+    <string name="watch_action_default_subtitle">Tiếp tục xem · %1$s</string>
+    <string name="watch_action_open">Xem trên %1$s</string>
+    <string name="watch_action_open_subtitle">Mở nội dung này trong ứng dụng</string>
+    <string name="watch_action_remove">Xóa</string>
+    <string name="watch_action_remove_subtitle">Xóa mục này khỏi danh sách Tiếp tục xem</string>
+    <string name="watch_action_clear_all">Xóa tất cả mục</string>
+    <string name="watch_action_clear_all_subtitle">Xóa toàn bộ mục khỏi danh sách Tiếp tục xem</string>
+    <string name="watch_next_season_episode">T%1$s:E%2$s</string>
+    <string name="watch_next_episode">Tập %1$s</string>
+
+    <!-- TV Inputs Dialog -->
+    <string name="tv_inputs_title">Ngõ vào</string>
+    <string name="tv_inputs_subtitle">Chọn nguồn truyền hình hoặc cổng kết nối trên tivi</string>
+    <string name="tv_input_live_tv">Truyền hình (Live TV)</string>
+    <string name="tv_input_default_name">Ngõ vào</string>
+    <string name="tv_input_state_live_tv">Truyền hình trực tiếp</string>
+    <string name="tv_input_state_connected">Đã kết nối</string>
+    <string name="tv_input_state_standby">Thiết bị đang chờ</string>
+    <string name="tv_input_state_disconnected">Chưa kết nối tín hiệu</string>
+
+    <!-- Customize Dialog (Main) -->
+    <string name="customize_title">Tùy chỉnh</string>
+    <string name="customize_subtitle">Cài đặt màn hình chính và phím tắt điều khiển</string>
+    <string name="customize_language">Ngôn ngữ</string>
+    <string name="customize_language_panel_subtitle">Chọn ngôn ngữ hiển thị cho trình khởi chạy</string>
+    <string name="customize_app_grid">Lưới ứng dụng</string>
+    <string name="customize_app_grid_subtitle">Hiển thị %1$d mục trên mỗi hàng</string>
+    <string name="customize_show_watch_row">Hiển thị hàng Tiếp tục xem</string>
+    <string name="customize_show_watch_row_on">Đang hiện trên màn hình chính</string>
+    <string name="customize_show_watch_row_off">Đang ẩn khỏi màn hình chính</string>
+    <string name="customize_watch_sources">Nguồn ứng dụng Tiếp tục xem</string>
+    <string name="customize_watch_sources_subtitle">Đang bật %1$d/%2$d ứng dụng</string>
+    <string name="customize_watch_sources_panel_subtitle">Bật hoặc tắt hiển thị nội dung từ từng ứng dụng</string>
+    <string name="customize_watch_source_disabled">Đã tắt hiển thị</string>
+    <string name="customize_watch_source_active">Đang có nội dung trong Tiếp tục xem</string>
+    <string name="customize_watch_source_enabled">Cho phép hiển thị</string>
+    <string name="customize_back_to_ambient">Bấm Back bật Bảo vệ màn hình</string>
+    <string name="customize_back_to_ambient_on">Mở Ambient Mode khi bấm Back ở mục đầu tiên</string>
+    <string name="customize_back_to_ambient_off">Không mở bảo vệ màn hình khi bấm Back</string>
+    <string name="customize_remote_buttons">Gán phím điều khiển</string>
+    <string name="customize_remote_buttons_subtitle">Phím Guide, YouTube, Cài đặt, Chuyển người dùng và phím tùy chỉnh</string>
+    <string name="customize_remote_buttons_panel_subtitle">Chọn ứng dụng hoặc hành động cho các phím trên remote</string>
+    <string name="customize_refresh">Làm mới nội dung</string>
+    <string name="customize_refresh_subtitle">Cập nhật lại danh sách Tiếp tục xem và ứng dụng</string>
+    <string name="toast_refreshed">Đã làm mới nội dung</string>
+
+    <!-- Theme & Wallpaper -->
+    <string name="customize_theme_wallpaper">Giao diện &amp; Hình nền</string>
+    <string name="customize_theme_wallpaper_subtitle">Bảng màu chủ đạo, hiệu ứng màu nền động và hình nền tùy chỉnh</string>
+    <string name="theme_section_palette">Tông màu chủ đạo</string>
+    <string name="theme_ocean_blue">Xanh Dương (Mặc định)</string>
+    <string name="theme_ocean_blue_subtitle">Nền xanh đen sang trọng với điểm nhấn xanh dương và xanh lam</string>
+    <string name="theme_midnight_purple">Tím Midnight</string>
+    <string name="theme_midnight_purple_subtitle">Nền tím đêm huyền bí kết hợp ánh tím thạch anh</string>
+    <string name="theme_emerald_teal">Xanh Ngọc</string>
+    <string name="theme_emerald_teal_subtitle">Nền xanh ngọc lục bảo dịu mắt và hiện đại</string>
+    <string name="theme_oled_black">Đen thuần OLED</string>
+    <string name="theme_oled_black_subtitle">Đen tuyệt đối (#000000) giúp tiết kiệm điện và chống lưu ảnh màn hình</string>
+    <string name="customize_dynamic_ambient">Màu nền chuyển động theo ứng dụng</string>
+    <string name="customize_dynamic_ambient_on">Ánh sáng nền chuyển nhẹ theo màu ứng dụng đang chọn</string>
+    <string name="customize_dynamic_ambient_off">Sử dụng ánh sáng nền cố định của bảng màu</string>
+    <string name="wallpaper_from_file">Đặt hình nền từ tệp cục bộ</string>
+    <string name="wallpaper_from_file_subtitle">Chọn ảnh từ bộ nhớ thiết bị hoặc thư mục Download</string>
+    <string name="wallpaper_from_url">Đặt hình nền từ URL</string>
+    <string name="wallpaper_from_url_subtitle">Nhập đường dẫn ảnh trực tiếp (JPG, PNG, WebP)</string>
+    <string name="wallpaper_url_prompt">Nhập đường dẫn URL trực tiếp của hình ảnh (http:// hoặc https://):</string>
+    <string name="wallpaper_url_apply">Tải về &amp; Áp dụng</string>
+    <string name="wallpaper_url_apply_subtitle">Tải ảnh từ đường dẫn và đặt làm hình nền màn hình chính</string>
+    <string name="wallpaper_local_empty">Không tìm thấy tệp ảnh trong thư mục Download, Pictures hoặc DCIM</string>
+    <string name="wallpaper_system_picker">Mở trình chọn tệp hệ thống</string>
+    <string name="wallpaper_system_picker_subtitle">Duyệt tìm ảnh bằng ứng dụng quản lý tệp của TV</string>
+    <string name="wallpaper_clear">Xóa hình nền tùy chỉnh</string>
+    <string name="wallpaper_clear_subtitle">Khôi phục lại nền bảng màu mặc định</string>
+    <string name="toast_wallpaper_applied">Đã cập nhật hình nền</string>
+    <string name="toast_wallpaper_failed">Không thể tải hình ảnh này</string>
+    <string name="toast_wallpaper_cleared">Đã xóa hình nền tùy chỉnh</string>
+
+    <!-- Auto-launch on Boot / Wake -->
+    <string name="customize_auto_launch">Tự động mở khi bật TV</string>
+    <string name="customize_auto_launch_panel_subtitle">Tự động mở ứng dụng hoặc ngõ vào khi khởi động hay đánh thức TV</string>
+    <string name="auto_launch_off">Tắt (Ở lại màn hình chính)</string>
+    <string name="auto_launch_off_subtitle">Không tự động mở ứng dụng khi bật TV</string>
+    <string name="auto_launch_on_boot">Khi khởi động lại hoàn toàn</string>
+    <string name="auto_launch_on_boot_on">Tự động mở sau khi TV khởi động lại</string>
+    <string name="auto_launch_on_boot_off">Không tự động mở khi khởi động lại</string>
+    <string name="auto_launch_on_wake">Khi đánh thức từ chế độ ngủ</string>
+    <string name="auto_launch_on_wake_on">Tự động mở khi bật màn hình TV từ chế độ chờ</string>
+    <string name="auto_launch_on_wake_off">Không tự động mở khi thức dậy từ chế độ chờ</string>
+    <string name="auto_launch_input_subtitle">Ngõ vào TV · %1$s</string>
+
+    <!-- Backup & Restore -->
+    <string name="customize_backup_restore">Sao lưu &amp; Khôi phục bố cục</string>
+    <string name="customize_backup_restore_subtitle">Xuất/nhập thứ tự ứng dụng, ứng dụng ẩn và cấu hình Tùy chỉnh</string>
+    <string name="backup_export_quick">Sao lưu nhanh vào Download</string>
+    <string name="backup_export_quick_subtitle">Xuất tệp Download/toolkit_launcher_backup.json</string>
+    <string name="backup_export_file">Sao lưu thành tệp tùy chọn…</string>
+    <string name="backup_export_file_subtitle">Chọn vị trí lưu tệp sao lưu trên thiết bị</string>
+    <string name="backup_import_quick">Khôi phục từ thư mục Download</string>
+    <string name="backup_import_quick_subtitle">Nhập cấu hình từ Download/toolkit_launcher_backup.json</string>
+    <string name="backup_import_file">Khôi phục từ tệp tùy chọn…</string>
+    <string name="backup_import_file_subtitle">Chọn tệp sao lưu .json từ bộ nhớ thiết bị</string>
+    <string name="toast_backup_saved">Đã lưu bản sao lưu: %1$s</string>
+    <string name="toast_backup_failed">Không thể lưu bản sao lưu</string>
+    <string name="toast_restore_success">Đã khôi phục bố cục và cấu hình thành công</string>
+    <string name="toast_restore_failed">Không tìm thấy tệp sao lưu hợp lệ</string>
+
+    <!-- Remote Buttons Remapping -->
+    <string name="remote_accessibility_on">Dịch vụ Trợ năng: Đang bật</string>
+    <string name="remote_accessibility_off">Dịch vụ Trợ năng: Đang tắt</string>
+    <string name="remote_accessibility_on_subtitle">Đang nhận tín hiệu phím tắt ở mọi màn hình</string>
+    <string name="remote_accessibility_off_subtitle">Bấm vào đây để bật Toolkit trong Cài đặt › Trợ năng</string>
+    <string name="remote_accessibility_badge_on">Đang bật</string>
+    <string name="remote_accessibility_badge_off">Bật ngay</string>
+    <string name="remote_override_home">Ghi đè phím Home</string>
+    <string name="remote_override_home_on">Đang bật — mở Toolkit khi chưa tắt launcher gốc</string>
+    <string name="remote_override_home_off">Đang tắt — dùng khi Toolkit đã là launcher mặc định</string>
+    <string name="remote_btn_guide_title">Phím Guide</string>
+    <string name="remote_btn_guide_default">Mặc định (Mở Truyền hình / Live TV)</string>
+    <string name="remote_btn_youtube_title">Phím YouTube</string>
+    <string name="remote_btn_youtube_default">Mặc định (Mở YouTube / SmartTube)</string>
+    <string name="remote_btn_settings_title">Phím Cài đặt</string>
+    <string name="remote_btn_settings_default">Mặc định (Mở Cài đặt hệ thống)</string>
+    <string name="remote_btn_profile_title">Phím Chuyển người dùng</string>
+    <string name="remote_btn_profile_default">Mặc định (Mở Tài khoản &amp; Đăng nhập)</string>
+    <string name="remote_target_disabled">Đã tắt (Không can thiệp)</string>
+    <string name="remote_target_open_app">Mở ứng dụng: %1$s</string>
+    <string name="remote_custom_key_code_suffix">&#160;· Mã phím: %1$s</string>
+    <string name="remote_custom_key_item_title">Phím tùy chỉnh (%1$s)</string>
+    <string name="remote_add_custom_key">Gán phím tùy chỉnh</string>
+    <string name="remote_add_custom_key_subtitle">Nhận diện mã phím bất kỳ trên remote và gán mở ứng dụng</string>
+    <string name="remote_detail_subtitle">Chọn hành động hoặc ứng dụng mở khi bấm phím</string>
+    <string name="remote_detail_default_subtitle">Sử dụng hành động mặc định cho phím này</string>
+    <string name="remote_learn_key">Nhận diện mã phím từ điều khiển</string>
+    <string name="remote_learn_key_active">Đang dùng mã phím: %1$s</string>
+    <string name="remote_learn_key_subtitle">Dùng khi bấm phím trên remote chưa thấy phản hồi</string>
+    <string name="remote_clear_key">Xóa mã phím đã nhận diện</string>
+    <string name="remote_clear_key_subtitle">Khôi phục về mã phím chuẩn mặc định</string>
+    <string name="toast_restored_default_key">Đã khôi phục mã phím mặc định</string>
+    <string name="remote_disable_button">Không can thiệp (Tắt)</string>
+    <string name="remote_disable_button_subtitle">Để hệ thống tự xử lý phím này</string>
+    <string name="remote_assigned_to_button">Đang được gán cho %1$s</string>
+    <string name="remote_capture_cancel_subtitle">Quay lại mà không thay đổi mã phím</string>
+    <string name="remote_capture_subtitle">Nhấn phím tương ứng trên điều khiển từ xa</string>
+    <string name="remote_capture_button_title">Nhận diện %1$s</string>
+    <string name="remote_capture_button_prompt">Hãy bấm phím bạn muốn gán làm \"%1$s\" trên điều khiển.\n(Các phím điều hướng, OK, Back, Home và Âm lượng sẽ được bỏ qua)</string>
+    <string name="toast_assigned_key_to_button">Đã gán phím %1$s cho %2$s</string>
+    <string name="remote_capture_custom_prompt">Hãy bấm phím bất kỳ trên điều khiển từ xa mà bạn muốn nhận diện và gán chức năng.\n(Các phím điều hướng, OK, Back, Home và Âm lượng sẽ được bỏ qua)</string>
+    <string name="remote_custom_detail_title">Phím %1$s</string>
+    <string name="remote_custom_detail_subtitle">Chọn ứng dụng hoặc hành động cho mã phím này</string>
+    <string name="remote_custom_remove">Xóa phím tùy chỉnh này</string>
+    <string name="remote_custom_remove_subtitle">Gỡ bỏ thiết lập gán phím cho %1$s</string>
+    <string name="toast_removed_custom_key">Đã xóa phím tùy chỉnh %1$s</string>
+    <string name="remote_action_live_tv">Mở Truyền hình / Live TV</string>
+    <string name="remote_action_live_tv_subtitle">Mở ngõ vào truyền hình hoặc ứng dụng TV</string>
+    <string name="remote_action_system_settings">Mở Cài đặt hệ thống</string>
+    <string name="remote_action_system_settings_subtitle">Mở màn hình Cài đặt Android TV</string>
+    <string name="remote_action_system_accounts">Mở Tài khoản &amp; Đăng nhập</string>
+    <string name="remote_action_system_accounts_subtitle">Mở quản lý tài khoản Google TV</string>
+    <string name="remote_assigned_to_key">Đang được gán cho phím %1$s</string>
+    <string name="toast_cannot_open_assigned_app">Không mở được ứng dụng đã gán cho %1$s</string>
+    <string name="toast_youtube_not_found">Không tìm thấy YouTube. Hãy chọn ứng dụng trong Tùy chỉnh › Gán phím điều khiển</string>
+    <string name="toast_guide_not_configured">Hãy gán ứng dụng cho Phím Guide trong Tùy chỉnh › Gán phím điều khiển</string>
+</resources>
+

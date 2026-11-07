@@ -27,6 +27,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Border
 import androidx.tv.material3.Card
@@ -34,6 +35,7 @@ import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.tk.toolkit.tv.R
 import com.tk.toolkit.tv.ui.theme.ToolkitColors
 
 private val TileShape = RoundedCornerShape(14.dp)
@@ -48,7 +50,7 @@ fun MoreAppsTile(
     modifier: Modifier = Modifier,
 ) {
     UtilityTile(
-        label = "Ứng dụng khác",
+        label = stringResource(R.string.tile_more_apps),
         icon = Icons.Outlined.Apps,
         dimmed = dimmed,
         focusRequester = focusRequester,
@@ -68,7 +70,7 @@ fun CustomizeTile(
     modifier: Modifier = Modifier,
 ) {
     UtilityTile(
-        label = "Tùy chỉnh",
+        label = stringResource(R.string.tile_customize),
         icon = Icons.Outlined.Tune,
         dimmed = dimmed,
         focusRequester = focusRequester,

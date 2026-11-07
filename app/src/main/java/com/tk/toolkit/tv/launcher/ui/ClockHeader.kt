@@ -26,9 +26,10 @@ import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material.icons.outlined.WifiOff
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -39,28 +40,34 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import androidx.annotation.StringRes
 import androidx.tv.material3.Icon
 import androidx.tv.material3.IconButton
 import androidx.tv.material3.IconButtonDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.tk.toolkit.tv.R
+import com.tk.toolkit.tv.launcher.data.AppLanguage
 import com.tk.toolkit.tv.ui.theme.ToolkitColors
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 private data class ClockText(val time: String, val meridiem: String?, val weekday: String, val date: String)
 
-private enum class NetworkType(val label: String, val icon: ImageVector) {
-    Ethernet("Mạng có dây", Icons.Outlined.SettingsEthernet),
-    Wifi("Wi-Fi", Icons.Outlined.Wifi),
-    Disconnected("Không có mạng", Icons.Outlined.WifiOff),
+private enum class NetworkType(@param:StringRes val labelRes: Int, val icon: ImageVector) {
+    Ethernet(R.string.header_network_ethernet, Icons.Outlined.SettingsEthernet),
+    Wifi(R.string.header_network_wifi, Icons.Outlined.Wifi),
+    Disconnected(R.string.header_network_disconnected, Icons.Outlined.WifiOff),
 }
 
 @Composable
 fun ClockHeader(
+    language: AppLanguage,
     onOpenNetwork: () -> Unit,
     onOpenAudioOutput: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -69,11 +76,17 @@ fun ClockHeader(
     onOpenInputs: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    val clock by produceState(clockText(DateFormat.is24HourFormat(context))) {
+    val locale = language.locale
+    var tick by remember { mutableLongStateOf(System.currentTimeMillis() / 1_000L) }
+    LaunchedEffect(Unit) {
         while (true) {
-            value = clockText(DateFormat.is24HourFormat(context))
             delay(1_000L - System.currentTimeMillis() % 1_000L)
+            tick = System.currentTimeMillis() / 1_000L
         }
+    }
+    val is24Hour = DateFormat.is24HourFormat(context)
+    val clock = remember(tick, locale, is24Hour) {
+        clockText(is24Hour, locale)
     }
     val networkType = rememberNetworkType(context)
 
@@ -102,19 +115,19 @@ fun ClockHeader(
                 .background(ToolkitColors.OnSurface.copy(alpha = 0.15f)),
         )
         Column {
-            Text(clock.weekday.uppercase(), style = MaterialTheme.typography.labelLarge, color = ToolkitColors.Accent)
+            Text(clock.weekday.uppercase(locale), style = MaterialTheme.typography.labelLarge, color = ToolkitColors.Accent)
             Text(clock.date, style = MaterialTheme.typography.bodyLarge, color = ToolkitColors.OnSurfaceMuted)
         }
         Spacer(Modifier.weight(1f))
         if (showInputsButton) {
-            HeaderButton(Icons.Outlined.Input, "Ngõ vào", onOpenInputs)
+            HeaderButton(Icons.Outlined.Input, stringResource(R.string.header_inputs), onOpenInputs)
             Spacer(Modifier.width(12.dp))
         }
-        HeaderButton(networkType.icon, networkType.label, onOpenNetwork)
+        HeaderButton(networkType.icon, stringResource(networkType.labelRes), onOpenNetwork)
         Spacer(Modifier.width(12.dp))
-        HeaderButton(Icons.Outlined.Speaker, "Đầu ra âm thanh", onOpenAudioOutput)
+        HeaderButton(Icons.Outlined.Speaker, stringResource(R.string.header_audio_output), onOpenAudioOutput)
         Spacer(Modifier.width(12.dp))
-        HeaderButton(Icons.Outlined.Settings, "Cài đặt", onOpenSettings)
+        HeaderButton(Icons.Outlined.Settings, stringResource(R.string.header_settings), onOpenSettings)
     }
 }
 
@@ -204,12 +217,12 @@ private fun detectNetworkType(context: Context): NetworkType {
     return NetworkType.Disconnected
 }
 
-private fun clockText(is24Hour: Boolean): ClockText {
+private fun clockText(is24Hour: Boolean, locale: Locale): ClockText {
     val now = LocalDateTime.now()
     return ClockText(
-        time = now.format(DateTimeFormatter.ofPattern(if (is24Hour) "HH:mm" else "h:mm")),
-        meridiem = if (is24Hour) null else now.format(DateTimeFormatter.ofPattern("a")).uppercase(),
-        weekday = now.format(DateTimeFormatter.ofPattern("EEEE")),
-        date = now.format(DateTimeFormatter.ofPattern("d MMMM")),
+        time = now.format(DateTimeFormatter.ofPattern(if (is24Hour) "HH:mm" else "h:mm", locale)),
+        meridiem = if (is24Hour) null else now.format(DateTimeFormatter.ofPattern("a", locale)).uppercase(locale),
+        weekday = now.format(DateTimeFormatter.ofPattern("EEEE", locale)),
+        date = now.format(DateTimeFormatter.ofPattern("d MMMM", locale)),
     )
 }

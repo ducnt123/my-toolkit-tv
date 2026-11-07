@@ -2,18 +2,25 @@ package com.tk.toolkit.tv.launcher
 
 import android.app.Application
 import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.tk.toolkit.tv.launcher.data.AppLanguage
 import com.tk.toolkit.tv.launcher.data.AppRepository
+import com.tk.toolkit.tv.launcher.data.AppThemePalette
 import com.tk.toolkit.tv.launcher.data.ContinueWatching
 import com.tk.toolkit.tv.launcher.data.CustomKeyMapping
 import com.tk.toolkit.tv.launcher.data.LauncherApp
 import com.tk.toolkit.tv.launcher.data.LauncherPrefs
+import com.tk.toolkit.tv.launcher.data.LocaleHelper
 import com.tk.toolkit.tv.launcher.data.RemoteButton
 import com.tk.toolkit.tv.launcher.data.RemoteButtonConfig
 import com.tk.toolkit.tv.launcher.data.RemoteButtons
+import com.tk.toolkit.tv.launcher.data.WallpaperStore
 import com.tk.toolkit.tv.launcher.data.WatchItem
 import com.tk.toolkit.tv.launcher.data.WatchNextRepository
+import com.tk.toolkit.tv.ui.theme.ToolkitColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,11 +29,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 data class LauncherState(
     /** Apps shown on the home grid, in the user's order. */
     val apps: List<LauncherApp> = emptyList(),
-    /** Apps the user hid, shown under "More Apps", alphabetically. */
+    /** Apps the user hid (plus non-TV sideloaded apps hidden by default), shown under "More Apps", alphabetically. */
     val hiddenApps: List<LauncherApp> = emptyList(),
     /** Continue Watching items whose app is installed and enabled, and that the user hasn't removed. */
     val watchItems: List<WatchItem> = emptyList(),
@@ -46,6 +54,20 @@ data class LauncherState(
     val overrideHomeKey: Boolean = false,
     /** Whether pressing Back at the first item starts the screensaver / Ambient Mode. */
     val backToAmbient: Boolean = true,
+    /** Selected launcher display language. */
+    val language: AppLanguage = AppLanguage.DEFAULT,
+    /** Selected dark theme color palette. */
+    val themePalette: AppThemePalette = AppThemePalette.DEFAULT,
+    /** Whether the background ambient glow shifts toward the focused app's color. */
+    val dynamicAmbientColor: Boolean = false,
+    /** Optional custom wallpaper bitmap loaded from internal storage. */
+    val customWallpaper: ImageBitmap? = null,
+    /** Target app package or TV input ID to auto-launch on boot/wake ("" = off). */
+    val autoLaunchTarget: String = "",
+    /** Whether auto-launch runs on cold device boot. */
+    val autoLaunchOnBoot: Boolean = true,
+    /** Whether auto-launch runs when waking from sleep/standby. */
+    val autoLaunchOnWake: Boolean = true,
     val loaded: Boolean = false,
     /** App package or Continue Watching key currently being repositioned, if any. */
     val movingKey: String? = null,
@@ -68,6 +90,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             customKeyMappings = prefs.customKeyMappings(),
             overrideHomeKey = RemoteButtons.shouldOverrideHomeKey(application),
             backToAmbient = prefs.isBackToAmbientEnabled(),
+            language = AppLanguage.fromCode(prefs.language()),
+            themePalette = prefs.themePalette(),
+            dynamicAmbientColor = prefs.isDynamicAmbientEnabled(),
+            autoLaunchTarget = prefs.autoLaunchTarget(),
+            autoLaunchOnBoot = prefs.isAutoLaunchOnBootEnabled(),
+            autoLaunchOnWake = prefs.isAutoLaunchOnWakeEnabled(),
         ),
     )
     val state: StateFlow<LauncherState> = _state.asStateFlow()
@@ -77,6 +105,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val watchObserver = watchNextRepository.registerObserver { refresh() }
 
     init {
+        ToolkitColors.currentPalette = prefs.themePalette()
         refresh()
     }
 
@@ -90,6 +119,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         refreshJob = viewModelScope.launch {
             val all = withContext(refreshDispatcher) { prefs.sort(repository.loadApps()) }
             val (watch, activePkgs) = withContext(refreshDispatcher) { loadWatchData(all) }
+            val wallpaper = withContext(refreshDispatcher) { WallpaperStore.loadWallpaper(getApplication()) }
             val showWatch = prefs.isWatchRowVisible()
             val columns = prefs.appColumns()
             val disabledWatch = prefs.disabledWatchPackages()
@@ -97,6 +127,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val customMappings = prefs.customKeyMappings()
             val overrideHome = RemoteButtons.shouldOverrideHomeKey(getApplication())
             val backToAmbient = prefs.isBackToAmbientEnabled()
+            val language = AppLanguage.fromCode(prefs.language())
+            val palette = prefs.themePalette()
+            val dynamicAmbient = prefs.isDynamicAmbientEnabled()
+            val autoTarget = prefs.autoLaunchTarget()
+            val autoBoot = prefs.isAutoLaunchOnBootEnabled()
+            val autoWake = prefs.isAutoLaunchOnWakeEnabled()
+            ToolkitColors.currentPalette = palette
+
             _state.update { current ->
                 // Don't reshuffle under the user while they're moving something.
                 if (current.movingKey != null) current
@@ -111,6 +149,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     customKeyMappings = customMappings,
                     overrideHomeKey = overrideHome,
                     backToAmbient = backToAmbient,
+                    language = language,
+                    themePalette = palette,
+                    dynamicAmbientColor = dynamicAmbient,
+                    customWallpaper = wallpaper,
+                    autoLaunchTarget = autoTarget,
+                    autoLaunchOnBoot = autoBoot,
+                    autoLaunchOnWake = autoWake,
                     homeRequestCount = current.homeRequestCount,
                 )
             }
@@ -118,8 +163,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun split(all: List<LauncherApp>): LauncherState {
-        val hidden = prefs.hiddenPackages()
-        val (hiddenApps, visible) = all.partition { it.packageName in hidden }
+        val (hiddenApps, visible) = all.partition { prefs.isAppHidden(it) }
         return LauncherState(apps = visible, hiddenApps = hiddenApps.sortedBy { it.label.lowercase() })
     }
 
@@ -190,6 +234,85 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun setBackToAmbientEnabled(enabled: Boolean) {
         prefs.setBackToAmbientEnabled(enabled)
         _state.update { it.copy(backToAmbient = enabled) }
+    }
+
+    fun setLanguage(language: AppLanguage) {
+        prefs.setLanguage(language.code)
+        LocaleHelper.wrapContext(getApplication(), language.code)
+        _state.update { it.copy(language = language) }
+        refresh()
+    }
+
+    fun setThemePalette(palette: AppThemePalette) {
+        prefs.setThemePalette(palette)
+        ToolkitColors.currentPalette = palette
+        _state.update { it.copy(themePalette = palette) }
+    }
+
+    fun setDynamicAmbientEnabled(enabled: Boolean) {
+        prefs.setDynamicAmbientEnabled(enabled)
+        _state.update { it.copy(dynamicAmbientColor = enabled) }
+    }
+
+    fun setWallpaperFromUri(uri: Uri, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) { WallpaperStore.saveFromUri(getApplication(), uri) }
+            val bitmap = if (ok) withContext(Dispatchers.IO) { WallpaperStore.loadWallpaper(getApplication()) } else null
+            if (ok) {
+                _state.update { it.copy(customWallpaper = bitmap) }
+            }
+            onResult(ok)
+        }
+    }
+
+    fun setWallpaperFromFile(file: File, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) { WallpaperStore.saveFromFile(getApplication(), file) }
+            val bitmap = if (ok) withContext(Dispatchers.IO) { WallpaperStore.loadWallpaper(getApplication()) } else null
+            if (ok) {
+                _state.update { it.copy(customWallpaper = bitmap) }
+            }
+            onResult(ok)
+        }
+    }
+
+    fun setWallpaperFromUrl(url: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) { WallpaperStore.saveFromUrl(getApplication(), url) }
+            val bitmap = if (ok) withContext(Dispatchers.IO) { WallpaperStore.loadWallpaper(getApplication()) } else null
+            if (ok) {
+                _state.update { it.copy(customWallpaper = bitmap) }
+            }
+            onResult(ok)
+        }
+    }
+
+    fun clearCustomWallpaper() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { WallpaperStore.clearWallpaper(getApplication()) }
+            _state.update { it.copy(customWallpaper = null) }
+        }
+    }
+
+    fun setAutoLaunchTarget(target: String) {
+        prefs.setAutoLaunchTarget(target)
+        _state.update { it.copy(autoLaunchTarget = target) }
+    }
+
+    fun setAutoLaunchOnBootEnabled(enabled: Boolean) {
+        prefs.setAutoLaunchOnBootEnabled(enabled)
+        _state.update { it.copy(autoLaunchOnBoot = enabled) }
+    }
+
+    fun setAutoLaunchOnWakeEnabled(enabled: Boolean) {
+        prefs.setAutoLaunchOnWakeEnabled(enabled)
+        _state.update { it.copy(autoLaunchOnWake = enabled) }
+    }
+
+    fun reloadAfterRestore() {
+        LocaleHelper.wrapContext(getApplication(), prefs.language())
+        ToolkitColors.currentPalette = prefs.themePalette()
+        refresh()
     }
 
     fun setWatchPackageEnabled(packageName: String, enabled: Boolean) {
@@ -283,6 +406,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 customKeyMappings = current.customKeyMappings,
                 overrideHomeKey = current.overrideHomeKey,
                 backToAmbient = current.backToAmbient,
+                language = current.language,
+                themePalette = current.themePalette,
+                dynamicAmbientColor = current.dynamicAmbientColor,
+                customWallpaper = current.customWallpaper,
+                autoLaunchTarget = current.autoLaunchTarget,
+                autoLaunchOnBoot = current.autoLaunchOnBoot,
+                autoLaunchOnWake = current.autoLaunchOnWake,
                 homeRequestCount = current.homeRequestCount,
             )
         }

@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -26,7 +27,9 @@ import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.tk.toolkit.tv.R
 import com.tk.toolkit.tv.launcher.data.LauncherApp
+import com.tk.toolkit.tv.launcher.data.LocaleHelper
 import com.tk.toolkit.tv.ui.theme.ToolkitColors
 
 private val PanelShape = RoundedCornerShape(24.dp)
@@ -46,34 +49,57 @@ fun AppActionsDialog(
     LaunchedEffect(Unit) { runCatching { firstAction.requestFocus() } }
 
     Dialog(onDismissRequest = onDismiss) {
-        Column(
-            Modifier
-                .width(400.dp)
-                .clip(PanelShape)
-                .background(ToolkitColors.SurfaceRaised)
-                .border(1.dp, Color.White.copy(alpha = 0.08f), PanelShape)
-                .ignoreHeldSelectKey(),
-        ) {
-            AppSummary(app)
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (isHidden) {
+        LocaleHelper.ProvideAppLocale {
+            Column(
+                Modifier
+                    .width(400.dp)
+                    .clip(PanelShape)
+                    .background(ToolkitColors.SurfaceRaised)
+                    .border(1.dp, Color.White.copy(alpha = 0.08f), PanelShape)
+                    .ignoreHeldSelectKey(),
+            ) {
+                AppSummary(app)
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (isHidden) {
+                        ActionItem(
+                            stringResource(R.string.app_action_unhide),
+                            stringResource(R.string.app_action_unhide_subtitle),
+                            onToggleHidden,
+                            Modifier.focusRequester(firstAction),
+                        )
+                    } else {
+                        ActionItem(
+                            stringResource(R.string.app_action_move),
+                            stringResource(R.string.app_action_move_subtitle),
+                            onMove,
+                            Modifier.focusRequester(firstAction),
+                        )
+                        ActionItem(
+                            stringResource(R.string.app_action_hide),
+                            stringResource(R.string.app_action_hide_subtitle),
+                            onToggleHidden,
+                        )
+                    }
                     ActionItem(
-                        "Bỏ ẩn", "Hiển thị lại trên màn hình chính",
-                        onToggleHidden, Modifier.focusRequester(firstAction),
+                        stringResource(R.string.app_action_info),
+                        stringResource(R.string.app_action_info_subtitle),
+                        onAppInfo,
                     )
-                } else {
-                    ActionItem("Di chuyển", "Thay đổi vị trí trên màn hình chính", onMove, Modifier.focusRequester(firstAction))
-                    ActionItem("Ẩn", "Di chuyển vào Ứng dụng khác", onToggleHidden)
-                }
-                ActionItem("Thông tin ứng dụng", "Dung lượng, quyền và cài đặt khác", onAppInfo)
-                ActionItem("Bắt buộc dừng", "Đóng ứng dụng hoàn toàn", onForceStop)
-                if (app.canUninstall) {
                     ActionItem(
-                        if (app.isUpdatedSystemApp) "Gỡ bản cập nhật" else "Gỡ cài đặt",
-                        if (app.isUpdatedSystemApp) "Khôi phục phiên bản gốc" else "Gỡ khỏi thiết bị này",
-                        onUninstall,
-                        danger = true,
+                        stringResource(R.string.app_action_force_stop),
+                        stringResource(R.string.app_action_force_stop_subtitle),
+                        onForceStop,
                     )
+                    if (app.canUninstall) {
+                        ActionItem(
+                            if (app.isUpdatedSystemApp) stringResource(R.string.app_action_uninstall_updates)
+                            else stringResource(R.string.app_action_uninstall),
+                            if (app.isUpdatedSystemApp) stringResource(R.string.app_action_uninstall_updates_subtitle)
+                            else stringResource(R.string.app_action_uninstall_subtitle),
+                            onUninstall,
+                            danger = true,
+                        )
+                    }
                 }
             }
         }

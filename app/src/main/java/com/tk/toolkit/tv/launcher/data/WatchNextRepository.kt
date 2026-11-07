@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.net.toUri
+import com.tk.toolkit.tv.R
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -150,11 +151,12 @@ class WatchNextRepository(private val context: Context) {
     }.getOrNull()
 
     private fun buildSubtitle(row: RawWatchNext, appLabel: String): String {
+        val localized = LocaleHelper.wrapContext(context)
         val epParts = ArrayList<String>(2)
         if (!row.seasonNumber.isNullOrBlank() && !row.episodeNumber.isNullOrBlank()) {
-            epParts += "T${row.seasonNumber}:E${row.episodeNumber}"
+            epParts += localized.getString(R.string.watch_next_season_episode, row.seasonNumber, row.episodeNumber)
         } else if (!row.episodeNumber.isNullOrBlank()) {
-            epParts += "Tập ${row.episodeNumber}"
+            epParts += localized.getString(R.string.watch_next_episode, row.episodeNumber)
         }
         if (!row.episodeTitle.isNullOrBlank() && row.episodeTitle != row.title) {
             epParts += row.episodeTitle

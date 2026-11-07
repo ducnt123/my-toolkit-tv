@@ -2,8 +2,10 @@ package com.tk.toolkit.tv.launcher.data
 
 import android.content.Context
 import androidx.core.content.edit
+import org.json.JSONArray
+import org.json.JSONObject
 
-/** Persists the user's launcher customizations: app order, hidden apps, Continue Watching order and removals. */
+/** Persists the user's launcher customizations: app order, hidden apps, Continue Watching, remote keys, theme, and auto-launch. */
 class LauncherPrefs(context: Context) {
 
     private val prefs = context.getSharedPreferences("launcher", Context.MODE_PRIVATE)
@@ -17,9 +19,35 @@ class LauncherPrefs(context: Context) {
 
     fun hiddenPackages(): Set<String> = prefs.getStringSet(KEY_HIDDEN, null).orEmpty()
 
+    fun unhiddenNonTvPackages(): Set<String> = prefs.getStringSet(KEY_UNHIDDEN_NON_TV, null).orEmpty()
+
+    /**
+     * Sideloaded / non-TV apps ([LauncherApp.isLeanback] == false) are hidden by default
+     * and placed in "More Apps" unless the user explicitly unhides them.
+     */
+    fun isAppHidden(app: LauncherApp): Boolean {
+        val explicitlyHidden = hiddenPackages()
+        if (app.packageName in explicitlyHidden) return true
+        if (!app.isLeanback) {
+            return app.packageName !in unhiddenNonTvPackages()
+        }
+        return false
+    }
+
     fun setHidden(packageName: String, hidden: Boolean) {
-        val updated = hiddenPackages().toMutableSet().apply { if (hidden) add(packageName) else remove(packageName) }
-        prefs.edit { putStringSet(KEY_HIDDEN, updated) }
+        val updatedHidden = hiddenPackages().toMutableSet()
+        val updatedUnhiddenNonTv = unhiddenNonTvPackages().toMutableSet()
+        if (hidden) {
+            updatedHidden.add(packageName)
+            updatedUnhiddenNonTv.remove(packageName)
+        } else {
+            updatedHidden.remove(packageName)
+            updatedUnhiddenNonTv.add(packageName)
+        }
+        prefs.edit {
+            putStringSet(KEY_HIDDEN, updatedHidden)
+            putStringSet(KEY_UNHIDDEN_NON_TV, updatedUnhiddenNonTv)
+        }
     }
 
     fun removedWatchItems(): Set<String> = prefs.getStringSet(KEY_REMOVED_WATCH, null).orEmpty()
@@ -48,6 +76,43 @@ class LauncherPrefs(context: Context) {
 
     fun setBackToAmbientEnabled(enabled: Boolean) {
         prefs.edit { putBoolean(KEY_BACK_TO_AMBIENT, enabled) }
+    }
+
+    fun language(): String = prefs.getString(KEY_LANGUAGE, AppLanguage.DEFAULT.code) ?: AppLanguage.DEFAULT.code
+
+    fun setLanguage(code: String) {
+        prefs.edit { putString(KEY_LANGUAGE, AppLanguage.fromCode(code).code) }
+    }
+
+    fun themePalette(): AppThemePalette =
+        AppThemePalette.fromId(prefs.getString(KEY_THEME_PALETTE, AppThemePalette.DEFAULT.id))
+
+    fun setThemePalette(palette: AppThemePalette) {
+        prefs.edit { putString(KEY_THEME_PALETTE, palette.id) }
+    }
+
+    fun isDynamicAmbientEnabled(): Boolean = prefs.getBoolean(KEY_DYNAMIC_AMBIENT, false)
+
+    fun setDynamicAmbientEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_DYNAMIC_AMBIENT, enabled) }
+    }
+
+    fun autoLaunchTarget(): String = prefs.getString(KEY_AUTO_LAUNCH_TARGET, "").orEmpty()
+
+    fun setAutoLaunchTarget(target: String) {
+        prefs.edit { putString(KEY_AUTO_LAUNCH_TARGET, target) }
+    }
+
+    fun isAutoLaunchOnBootEnabled(): Boolean = prefs.getBoolean(KEY_AUTO_LAUNCH_BOOT, true)
+
+    fun setAutoLaunchOnBootEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_AUTO_LAUNCH_BOOT, enabled) }
+    }
+
+    fun isAutoLaunchOnWakeEnabled(): Boolean = prefs.getBoolean(KEY_AUTO_LAUNCH_WAKE, true)
+
+    fun setAutoLaunchOnWakeEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_AUTO_LAUNCH_WAKE, enabled) }
     }
 
     fun isOverrideHomeKeyEnabled(defaultValue: Boolean = false): Boolean =
@@ -182,15 +247,116 @@ class LauncherPrefs(context: Context) {
             fresh.sortedBy { it.label.lowercase() }
     }
 
+    fun exportToJson(): String {
+        val root = JSONObject()
+        root.put("version", 1)
+        root.put(KEY_ORDER, JSONArray(loadOrder()))
+        root.put(KEY_HIDDEN, JSONArray(hiddenPackages().toList()))
+        root.put(KEY_UNHIDDEN_NON_TV, JSONArray(unhiddenNonTvPackages().toList()))
+        root.put(KEY_REMOVED_WATCH, JSONArray(removedWatchItems().toList()))
+        root.put(
+            KEY_WATCH_ORDER,
+            JSONArray(prefs.getString(KEY_WATCH_ORDER, null)?.split('\n')?.filter { it.isNotBlank() }.orEmpty()),
+        )
+        root.put(KEY_DISABLED_WATCH_PKGS, JSONArray(disabledWatchPackages().toList()))
+        root.put(KEY_SHOW_WATCH_ROW, isWatchRowVisible())
+        root.put(KEY_APP_COLUMNS, appColumns())
+        root.put(KEY_BACK_TO_AMBIENT, isBackToAmbientEnabled())
+        root.put(KEY_LANGUAGE, language())
+        root.put(KEY_THEME_PALETTE, themePalette().id)
+        root.put(KEY_DYNAMIC_AMBIENT, isDynamicAmbientEnabled())
+        root.put(KEY_AUTO_LAUNCH_TARGET, autoLaunchTarget())
+        root.put(KEY_AUTO_LAUNCH_BOOT, isAutoLaunchOnBootEnabled())
+        root.put(KEY_AUTO_LAUNCH_WAKE, isAutoLaunchOnWakeEnabled())
+        if (hasOverrideHomeKeyPref()) {
+            root.put(KEY_OVERRIDE_HOME, isOverrideHomeKeyEnabled())
+        }
+        val remoteObj = JSONObject()
+        for (btn in RemoteButton.entries) {
+            val btnObj = JSONObject()
+            btnObj.put("target", remoteButtonTarget(btn))
+            btnObj.put("keyCode", remoteButtonCustomKeyCode(btn))
+            btnObj.put("scanCode", remoteButtonCustomScanCode(btn))
+            remoteObj.put(btn.id, btnObj)
+        }
+        root.put("remote_buttons", remoteObj)
+        root.put(
+            KEY_CUSTOM_REMOTE_KEYS,
+            JSONArray(customKeyMappings().map { "${it.keyCode}:${it.scanCode}:${it.target}" }),
+        )
+        return root.toString(2)
+    }
+
+    fun importFromJson(jsonString: String): Boolean = runCatching {
+        val root = JSONObject(jsonString)
+        if (!root.has("version") && !root.has(KEY_ORDER) && !root.has(KEY_APP_COLUMNS)) {
+            return false
+        }
+        prefs.edit {
+            root.optJSONArray(KEY_ORDER)?.toStringList()?.let {
+                putString(KEY_ORDER, it.joinToString("\n"))
+            }
+            root.optJSONArray(KEY_HIDDEN)?.toStringList()?.let {
+                putStringSet(KEY_HIDDEN, it.toSet())
+            }
+            root.optJSONArray(KEY_UNHIDDEN_NON_TV)?.toStringList()?.let {
+                putStringSet(KEY_UNHIDDEN_NON_TV, it.toSet())
+            }
+            root.optJSONArray(KEY_REMOVED_WATCH)?.toStringList()?.let {
+                putStringSet(KEY_REMOVED_WATCH, it.toSet())
+            }
+            root.optJSONArray(KEY_WATCH_ORDER)?.toStringList()?.let {
+                putString(KEY_WATCH_ORDER, it.joinToString("\n"))
+            }
+            root.optJSONArray(KEY_DISABLED_WATCH_PKGS)?.toStringList()?.let {
+                putStringSet(KEY_DISABLED_WATCH_PKGS, it.toSet())
+            }
+            if (root.has(KEY_SHOW_WATCH_ROW)) putBoolean(KEY_SHOW_WATCH_ROW, root.optBoolean(KEY_SHOW_WATCH_ROW, true))
+            if (root.has(KEY_APP_COLUMNS)) putInt(KEY_APP_COLUMNS, root.optInt(KEY_APP_COLUMNS, 6).coerceIn(4, 6))
+            if (root.has(KEY_BACK_TO_AMBIENT)) putBoolean(KEY_BACK_TO_AMBIENT, root.optBoolean(KEY_BACK_TO_AMBIENT, true))
+            if (root.has(KEY_LANGUAGE)) putString(KEY_LANGUAGE, AppLanguage.fromCode(root.optString(KEY_LANGUAGE)).code)
+            if (root.has(KEY_THEME_PALETTE)) putString(KEY_THEME_PALETTE, AppThemePalette.fromId(root.optString(KEY_THEME_PALETTE)).id)
+            if (root.has(KEY_DYNAMIC_AMBIENT)) putBoolean(KEY_DYNAMIC_AMBIENT, root.optBoolean(KEY_DYNAMIC_AMBIENT, false))
+            if (root.has(KEY_AUTO_LAUNCH_TARGET)) putString(KEY_AUTO_LAUNCH_TARGET, root.optString(KEY_AUTO_LAUNCH_TARGET, ""))
+            if (root.has(KEY_AUTO_LAUNCH_BOOT)) putBoolean(KEY_AUTO_LAUNCH_BOOT, root.optBoolean(KEY_AUTO_LAUNCH_BOOT, true))
+            if (root.has(KEY_AUTO_LAUNCH_WAKE)) putBoolean(KEY_AUTO_LAUNCH_WAKE, root.optBoolean(KEY_AUTO_LAUNCH_WAKE, true))
+            if (root.has(KEY_OVERRIDE_HOME)) putBoolean(KEY_OVERRIDE_HOME, root.optBoolean(KEY_OVERRIDE_HOME, false))
+
+            val remoteObj = root.optJSONObject("remote_buttons")
+            if (remoteObj != null) {
+                for (btn in RemoteButton.entries) {
+                    val btnObj = remoteObj.optJSONObject(btn.id) ?: continue
+                    putString("$KEY_REMOTE_TARGET_PREFIX${btn.id}", btnObj.optString("target", RemoteButtons.TARGET_DEFAULT))
+                    putInt("$KEY_REMOTE_KEYCODE_PREFIX${btn.id}", btnObj.optInt("keyCode", 0))
+                    putInt("$KEY_REMOTE_SCANCODE_PREFIX${btn.id}", btnObj.optInt("scanCode", 0))
+                }
+            }
+            root.optJSONArray(KEY_CUSTOM_REMOTE_KEYS)?.toStringList()?.let {
+                putString(KEY_CUSTOM_REMOTE_KEYS, it.joinToString("\n"))
+            }
+        }
+        true
+    }.getOrDefault(false)
+
+    private fun JSONArray.toStringList(): List<String> =
+        (0 until length()).mapNotNull { idx -> optString(idx)?.takeIf { it.isNotBlank() } }
+
     private companion object {
         const val KEY_ORDER = "order"
         const val KEY_HIDDEN = "hidden"
+        const val KEY_UNHIDDEN_NON_TV = "unhidden_non_tv"
         const val KEY_REMOVED_WATCH = "removed_watch"
         const val KEY_WATCH_ORDER = "watch_order"
         const val KEY_SHOW_WATCH_ROW = "show_watch_row"
         const val KEY_DISABLED_WATCH_PKGS = "disabled_watch_pkgs"
         const val KEY_APP_COLUMNS = "app_columns"
         const val KEY_BACK_TO_AMBIENT = "back_to_ambient"
+        const val KEY_LANGUAGE = "language"
+        const val KEY_THEME_PALETTE = "theme_palette"
+        const val KEY_DYNAMIC_AMBIENT = "dynamic_ambient"
+        const val KEY_AUTO_LAUNCH_TARGET = "auto_launch_target"
+        const val KEY_AUTO_LAUNCH_BOOT = "auto_launch_boot"
+        const val KEY_AUTO_LAUNCH_WAKE = "auto_launch_wake"
         const val KEY_OVERRIDE_HOME = "override_home"
         const val KEY_REMOTE_TARGET_PREFIX = "remote_target_"
         const val KEY_REMOTE_KEYCODE_PREFIX = "remote_keycode_"

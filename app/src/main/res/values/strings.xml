@@ -1,4 +1,217 @@
 <resources>
+    <!-- App & Accessibility -->
     <string name="app_name">Toolkit</string>
-    <string name="accessibility_service_description">Makes the Home button open Toolkit, and lets Toolkit press the system \"Force stop\" button when you choose Force stop from an app\'s menu. It only reacts to the Home button, the stock home screen and the Settings app.</string>
+    <string name="accessibility_service_description">Makes the Home button open Toolkit, intercepts configured remote buttons, and lets Toolkit press the system \"Force stop\" button when you choose Force stop from an app\'s menu.</string>
+
+    <!-- Language names -->
+    <string name="lang_vi">Tiếng Việt / Vietnamese</string>
+    <string name="lang_en">English</string>
+
+    <!-- Common -->
+    <string name="common_selected">Selected</string>
+    <string name="common_cancel">Cancel</string>
+
+    <!-- Home Screen & Header -->
+    <string name="section_continue_watching">Continue Watching</string>
+    <string name="section_apps">Apps</string>
+    <string name="tile_more_apps">More Apps</string>
+    <string name="tile_customize">Customize</string>
+    <string name="move_hint">Use the arrows to move  ·  Press OK to drop</string>
+    <string name="loading_apps">Loading apps…</string>
+    <string name="header_inputs">Inputs</string>
+    <string name="header_network_ethernet">Ethernet</string>
+    <string name="header_network_wifi">Wi-Fi</string>
+    <string name="header_network_disconnected">No network</string>
+    <string name="header_audio_output">Audio output</string>
+    <string name="header_settings">Settings</string>
+
+    <!-- Hidden Apps Dialog -->
+    <string name="hidden_apps_title">More Apps</string>
+    <string name="hidden_apps_subtitle">Apps hidden from the home screen · hold OK to unhide</string>
+
+    <!-- App Actions Dialog & Toasts -->
+    <string name="app_action_unhide">Unhide</string>
+    <string name="app_action_unhide_subtitle">Show on the home screen again</string>
+    <string name="app_action_move">Move</string>
+    <string name="app_action_move_subtitle">Change position on the home screen</string>
+    <string name="app_action_hide">Hide</string>
+    <string name="app_action_hide_subtitle">Move to More Apps</string>
+    <string name="app_action_info">App info</string>
+    <string name="app_action_info_subtitle">Storage, permissions and other settings</string>
+    <string name="app_action_force_stop">Force stop</string>
+    <string name="app_action_force_stop_subtitle">Close the app completely</string>
+    <string name="app_action_uninstall_updates">Uninstall updates</string>
+    <string name="app_action_uninstall_updates_subtitle">Restore factory version</string>
+    <string name="app_action_uninstall">Uninstall</string>
+    <string name="app_action_uninstall_subtitle">Remove from this device</string>
+    <string name="toast_enable_accessibility_force_stop">Turn on \"Toolkit\" in Settings › Accessibility for one-click force stop</string>
+    <string name="toast_could_not_open">Couldn\'t open that</string>
+    <string name="toast_not_allowed">Not allowed</string>
+    <string name="toast_already_stopped">Already stopped</string>
+    <string name="toast_force_stopped">Force stopped</string>
+    <string name="toast_force_stop_failed">Couldn\'t force stop — try from App info</string>
+
+    <!-- Continue Watching Actions & Metadata -->
+    <string name="watch_action_default_subtitle">Continue Watching · %1$s</string>
+    <string name="watch_action_open">Watch on %1$s</string>
+    <string name="watch_action_open_subtitle">Open this content in the app</string>
+    <string name="watch_action_remove">Remove</string>
+    <string name="watch_action_remove_subtitle">Remove this item from Continue Watching</string>
+    <string name="watch_action_clear_all">Clear all items</string>
+    <string name="watch_action_clear_all_subtitle">Remove all items from Continue Watching</string>
+    <string name="watch_next_season_episode">S%1$s:E%2$s</string>
+    <string name="watch_next_episode">Episode %1$s</string>
+
+    <!-- TV Inputs Dialog -->
+    <string name="tv_inputs_title">Inputs</string>
+    <string name="tv_inputs_subtitle">Select a TV source or input port</string>
+    <string name="tv_input_live_tv">Live TV</string>
+    <string name="tv_input_default_name">Input</string>
+    <string name="tv_input_state_live_tv">Live TV broadcast</string>
+    <string name="tv_input_state_connected">Connected</string>
+    <string name="tv_input_state_standby">Standby</string>
+    <string name="tv_input_state_disconnected">No signal</string>
+
+    <!-- Customize Dialog (Main) -->
+    <string name="customize_title">Customize</string>
+    <string name="customize_subtitle">Home screen settings and remote shortcuts</string>
+    <string name="customize_language">Language</string>
+    <string name="customize_language_panel_subtitle">Choose the display language for the launcher</string>
+    <string name="customize_app_grid">App grid</string>
+    <string name="customize_app_grid_subtitle">Show %1$d items per row</string>
+    <string name="customize_show_watch_row">Show Continue Watching row</string>
+    <string name="customize_show_watch_row_on">Visible on the home screen</string>
+    <string name="customize_show_watch_row_off">Hidden from the home screen</string>
+    <string name="customize_watch_sources">Continue Watching sources</string>
+    <string name="customize_watch_sources_subtitle">%1$d/%2$d apps enabled</string>
+    <string name="customize_watch_sources_panel_subtitle">Enable or disable content from each app</string>
+    <string name="customize_watch_source_disabled">Disabled</string>
+    <string name="customize_watch_source_active">Currently has items in Continue Watching</string>
+    <string name="customize_watch_source_enabled">Allowed to show</string>
+    <string name="customize_back_to_ambient">Press Back to start Screensaver</string>
+    <string name="customize_back_to_ambient_on">Start Ambient Mode when pressing Back at the first item</string>
+    <string name="customize_back_to_ambient_off">Do not start screensaver when pressing Back</string>
+    <string name="customize_remote_buttons">Remote button remapping</string>
+    <string name="customize_remote_buttons_subtitle">Guide, YouTube, Settings, Profile buttons and custom keys</string>
+    <string name="customize_remote_buttons_panel_subtitle">Choose an app or action for buttons on your remote</string>
+    <string name="customize_refresh">Refresh content</string>
+    <string name="customize_refresh_subtitle">Reload Continue Watching and app list</string>
+    <string name="toast_refreshed">Content refreshed</string>
+
+    <!-- Theme & Wallpaper -->
+    <string name="customize_theme_wallpaper">Theme &amp; Wallpaper</string>
+    <string name="customize_theme_wallpaper_subtitle">Color palette, dynamic ambient glow, and custom wallpaper</string>
+    <string name="theme_section_palette">Color palette</string>
+    <string name="theme_ocean_blue">Ocean Blue (Default)</string>
+    <string name="theme_ocean_blue_subtitle">Deep navy background with soft blue and teal accents</string>
+    <string name="theme_midnight_purple">Midnight Purple</string>
+    <string name="theme_midnight_purple_subtitle">Luxurious dark violet with amethyst and magenta glow</string>
+    <string name="theme_emerald_teal">Emerald Teal</string>
+    <string name="theme_emerald_teal_subtitle">Calm dark forest teal with cyan highlights</string>
+    <string name="theme_oled_black">Pure OLED Black</string>
+    <string name="theme_oled_black_subtitle">True black (#000000) to save power and prevent screen burn-in</string>
+    <string name="customize_dynamic_ambient">Dynamic Ambient Background</string>
+    <string name="customize_dynamic_ambient_on">Background subtly shifts toward the highlighted app\'s color</string>
+    <string name="customize_dynamic_ambient_off">Use static theme background colors</string>
+    <string name="wallpaper_from_file">Set wallpaper from local file</string>
+    <string name="wallpaper_from_file_subtitle">Choose an image from device storage or Download folder</string>
+    <string name="wallpaper_from_url">Set wallpaper from URL</string>
+    <string name="wallpaper_from_url_subtitle">Enter a direct image link (JPG, PNG, WebP)</string>
+    <string name="wallpaper_url_prompt">Enter the direct URL of the image (http:// or https://):</string>
+    <string name="wallpaper_url_apply">Download &amp; Apply</string>
+    <string name="wallpaper_url_apply_subtitle">Fetch image from URL and set as home screen background</string>
+    <string name="wallpaper_local_empty">No image files found in Download, Pictures, or DCIM</string>
+    <string name="wallpaper_system_picker">Open system file picker</string>
+    <string name="wallpaper_system_picker_subtitle">Browse files using Android document picker</string>
+    <string name="wallpaper_clear">Remove custom wallpaper</string>
+    <string name="wallpaper_clear_subtitle">Restore default theme background</string>
+    <string name="toast_wallpaper_applied">Wallpaper updated</string>
+    <string name="toast_wallpaper_failed">Couldn\'t load image</string>
+    <string name="toast_wallpaper_cleared">Custom wallpaper removed</string>
+
+    <!-- Auto-launch on Boot / Wake -->
+    <string name="customize_auto_launch">Auto-launch on boot / wake</string>
+    <string name="customize_auto_launch_panel_subtitle">Automatically open an app or TV input when turning on the TV</string>
+    <string name="auto_launch_off">Off (Stay on home screen)</string>
+    <string name="auto_launch_off_subtitle">Do not automatically launch any app</string>
+    <string name="auto_launch_on_boot">Launch on cold boot</string>
+    <string name="auto_launch_on_boot_on">Open automatically when TV finishes restarting</string>
+    <string name="auto_launch_on_boot_off">Do not launch on cold restart</string>
+    <string name="auto_launch_on_wake">Launch on wake from sleep</string>
+    <string name="auto_launch_on_wake_on">Open automatically when waking TV from standby</string>
+    <string name="auto_launch_on_wake_off">Do not launch when waking from standby</string>
+    <string name="auto_launch_input_subtitle">TV input source · %1$s</string>
+
+    <!-- Backup & Restore -->
+    <string name="customize_backup_restore">Backup &amp; Restore layout</string>
+    <string name="customize_backup_restore_subtitle">Export or import app order, hidden apps, and settings</string>
+    <string name="backup_export_quick">Save backup to Download</string>
+    <string name="backup_export_quick_subtitle">Export to Download/toolkit_launcher_backup.json</string>
+    <string name="backup_export_file">Save backup to custom file…</string>
+    <string name="backup_export_file_subtitle">Choose where to save the backup file</string>
+    <string name="backup_import_quick">Restore from Download</string>
+    <string name="backup_import_quick_subtitle">Import from Download/toolkit_launcher_backup.json</string>
+    <string name="backup_import_file">Restore from custom file…</string>
+    <string name="backup_import_file_subtitle">Select a backup .json file from storage</string>
+    <string name="toast_backup_saved">Backup saved: %1$s</string>
+    <string name="toast_backup_failed">Couldn\'t save backup</string>
+    <string name="toast_restore_success">Backup restored successfully</string>
+    <string name="toast_restore_failed">No valid backup file found</string>
+
+    <!-- Remote Buttons Remapping -->
+    <string name="remote_accessibility_on">Accessibility Service: On</string>
+    <string name="remote_accessibility_off">Accessibility Service: Off</string>
+    <string name="remote_accessibility_on_subtitle">Receiving shortcut key events across all screens</string>
+    <string name="remote_accessibility_off_subtitle">Click here to enable Toolkit in Settings › Accessibility</string>
+    <string name="remote_accessibility_badge_on">On</string>
+    <string name="remote_accessibility_badge_off">Enable</string>
+    <string name="remote_override_home">Override Home button</string>
+    <string name="remote_override_home_on">On — opens Toolkit when stock launcher is still enabled</string>
+    <string name="remote_override_home_off">Off — use when Toolkit is already the default launcher</string>
+    <string name="remote_btn_guide_title">Guide button</string>
+    <string name="remote_btn_guide_default">Default (Open Live TV)</string>
+    <string name="remote_btn_youtube_title">YouTube button</string>
+    <string name="remote_btn_youtube_default">Default (Open YouTube / SmartTube)</string>
+    <string name="remote_btn_settings_title">Settings button</string>
+    <string name="remote_btn_settings_default">Default (Open System Settings)</string>
+    <string name="remote_btn_profile_title">Profile button</string>
+    <string name="remote_btn_profile_default">Default (Open Accounts &amp; Sign-in)</string>
+    <string name="remote_target_disabled">Disabled (Do not intercept)</string>
+    <string name="remote_target_open_app">Open app: %1$s</string>
+    <string name="remote_custom_key_code_suffix">&#160;· Key code: %1$s</string>
+    <string name="remote_custom_key_item_title">Custom key (%1$s)</string>
+    <string name="remote_add_custom_key">Map a custom key</string>
+    <string name="remote_add_custom_key_subtitle">Detect any remote button and assign it to an app or action</string>
+    <string name="remote_detail_subtitle">Choose an action or app to open when pressed</string>
+    <string name="remote_detail_default_subtitle">Use the default action for this button</string>
+    <string name="remote_learn_key">Detect key code from remote</string>
+    <string name="remote_learn_key_active">Using key code: %1$s</string>
+    <string name="remote_learn_key_subtitle">Use if pressing the button on your remote doesn\'t respond</string>
+    <string name="remote_clear_key">Clear detected key code</string>
+    <string name="remote_clear_key_subtitle">Restore standard default key codes</string>
+    <string name="toast_restored_default_key">Restored default key code</string>
+    <string name="remote_disable_button">Do not intercept (Off)</string>
+    <string name="remote_disable_button_subtitle">Let the system handle this button</string>
+    <string name="remote_assigned_to_button">Assigned to %1$s</string>
+    <string name="remote_capture_cancel_subtitle">Go back without changing key code</string>
+    <string name="remote_capture_subtitle">Press the corresponding button on your remote</string>
+    <string name="remote_capture_button_title">Detect %1$s</string>
+    <string name="remote_capture_button_prompt">Press the button on your remote that you want to assign as \"%1$s\".\n(D-pad, OK, Back, Home, and Volume keys are ignored)</string>
+    <string name="toast_assigned_key_to_button">Assigned key %1$s to %2$s</string>
+    <string name="remote_capture_custom_prompt">Press any button on your remote that you want to detect and assign.\n(D-pad, OK, Back, Home, and Volume keys are ignored)</string>
+    <string name="remote_custom_detail_title">Key %1$s</string>
+    <string name="remote_custom_detail_subtitle">Choose an app or action for this key code</string>
+    <string name="remote_custom_remove">Remove this custom key</string>
+    <string name="remote_custom_remove_subtitle">Remove key mapping for %1$s</string>
+    <string name="toast_removed_custom_key">Removed custom key %1$s</string>
+    <string name="remote_action_live_tv">Open Live TV</string>
+    <string name="remote_action_live_tv_subtitle">Open TV input or Live TV app</string>
+    <string name="remote_action_system_settings">Open System Settings</string>
+    <string name="remote_action_system_settings_subtitle">Open Android TV Settings screen</string>
+    <string name="remote_action_system_accounts">Open Accounts &amp; Sign-in</string>
+    <string name="remote_action_system_accounts_subtitle">Open Google TV account management</string>
+    <string name="remote_assigned_to_key">Assigned to key %1$s</string>
+    <string name="toast_cannot_open_assigned_app">Couldn\'t open the app assigned to %1$s</string>
+    <string name="toast_youtube_not_found">YouTube not found. Please select an app in Customize › Remote button remapping</string>
+    <string name="toast_guide_not_configured">Please assign an app for the Guide button in Customize › Remote button remapping</string>
 </resources>

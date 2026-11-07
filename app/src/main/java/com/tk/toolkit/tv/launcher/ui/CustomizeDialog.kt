@@ -1,8 +1,18 @@
 package com.tk.toolkit.tv.launcher.ui
 
+import android.net.Uri
 import android.view.KeyEvent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -11,17 +21,57 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.AccessibilityNew
+import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.AddCircleOutline
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Backup
+import androidx.compose.material.icons.outlined.Bedtime
+import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.FileUpload
+import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Input
+import androidx.compose.material.icons.outlined.Keyboard
+import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.LiveTv
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.PlayCircleOutline
+import androidx.compose.material.icons.outlined.PowerSettingsNew
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Restore
+import androidx.compose.material.icons.outlined.Sensors
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.SettingsRemote
+import androidx.compose.material.icons.outlined.SmartDisplay
+import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,39 +85,71 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.tv.material3.Icon
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Switch
 import androidx.tv.material3.SwitchDefaults
 import androidx.tv.material3.Text
+import com.tk.toolkit.tv.R
 import com.tk.toolkit.tv.core.ToolkitAccessibilityService
+import com.tk.toolkit.tv.launcher.data.AppLanguage
+import com.tk.toolkit.tv.launcher.data.AppThemePalette
+import com.tk.toolkit.tv.launcher.data.AutoLaunchManager
+import com.tk.toolkit.tv.launcher.data.BackupManager
 import com.tk.toolkit.tv.launcher.data.CustomKeyMapping
 import com.tk.toolkit.tv.launcher.data.LauncherApp
+import com.tk.toolkit.tv.launcher.data.LocaleHelper
 import com.tk.toolkit.tv.launcher.data.RemoteButton
 import com.tk.toolkit.tv.launcher.data.RemoteButtonConfig
 import com.tk.toolkit.tv.launcher.data.RemoteButtons
+import com.tk.toolkit.tv.launcher.data.TvInputEntry
+import com.tk.toolkit.tv.launcher.data.WallpaperStore
 import com.tk.toolkit.tv.ui.theme.ToolkitColors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 
-private val PanelShape = RoundedCornerShape(24.dp)
+private val SheetShape = RoundedCornerShape(24.dp)
+private val ItemShape = RoundedCornerShape(14.dp)
+private val IconBoxShape = RoundedCornerShape(10.dp)
+private val SHEET_WIDTH = 420.dp
+private val SAFE_AREA_HORIZONTAL = 48.dp
+private val SAFE_AREA_VERTICAL = 28.dp
 
 private sealed interface CustomizePage {
-    data object Main : CustomizePage
-    data object WatchSources : CustomizePage
-    data object RemoteButtonsList : CustomizePage
-    data class RemoteButtonDetail(val button: RemoteButton) : CustomizePage
-    data class CaptureKey(val button: RemoteButton) : CustomizePage
-    data object CaptureNewCustomKey : CustomizePage
-    data class CustomKeyDetail(val keyCode: Int, val scanCode: Int, val isNew: Boolean) : CustomizePage
+    val depth: Int
+    data object Main : CustomizePage { override val depth = 0 }
+    data object ThemeWallpaper : CustomizePage { override val depth = 1 }
+    data object WallpaperLocalFile : CustomizePage { override val depth = 2 }
+    data object WallpaperUrl : CustomizePage { override val depth = 2 }
+    data object Language : CustomizePage { override val depth = 1 }
+    data object WatchSources : CustomizePage { override val depth = 1 }
+    data object AutoLaunch : CustomizePage { override val depth = 1 }
+    data object BackupRestore : CustomizePage { override val depth = 1 }
+    data object RemoteButtonsList : CustomizePage { override val depth = 1 }
+    data class RemoteButtonDetail(val button: RemoteButton) : CustomizePage { override val depth = 2 }
+    data class CaptureKey(val button: RemoteButton) : CustomizePage { override val depth = 3 }
+    data object CaptureNewCustomKey : CustomizePage { override val depth = 2 }
+    data class CustomKeyDetail(val keyCode: Int, val scanCode: Int, val isNew: Boolean) : CustomizePage { override val depth = 2 }
 }
 
 @Composable
@@ -75,6 +157,14 @@ fun CustomizeDialog(
     showWatchRow: Boolean,
     appColumns: Int,
     backToAmbient: Boolean,
+    language: AppLanguage,
+    themePalette: AppThemePalette,
+    dynamicAmbientColor: Boolean,
+    hasCustomWallpaper: Boolean,
+    autoLaunchTarget: String,
+    autoLaunchOnBoot: Boolean,
+    autoLaunchOnWake: Boolean,
+    tvInputs: List<TvInputEntry>,
     apps: List<LauncherApp>,
     disabledWatchPackages: Set<String>,
     activeWatchPackages: Set<String>,
@@ -84,6 +174,17 @@ fun CustomizeDialog(
     onToggleWatchRow: (Boolean) -> Unit,
     onSetAppColumns: (Int) -> Unit,
     onToggleBackToAmbient: (Boolean) -> Unit,
+    onSetLanguage: (AppLanguage) -> Unit,
+    onSetThemePalette: (AppThemePalette) -> Unit,
+    onSetDynamicAmbient: (Boolean) -> Unit,
+    onSetWallpaperFromUri: (Uri, (Boolean) -> Unit) -> Unit,
+    onSetWallpaperFromFile: (File, (Boolean) -> Unit) -> Unit,
+    onSetWallpaperFromUrl: (String, (Boolean) -> Unit) -> Unit,
+    onClearWallpaper: () -> Unit,
+    onSetAutoLaunchTarget: (String) -> Unit,
+    onSetAutoLaunchOnBoot: (Boolean) -> Unit,
+    onSetAutoLaunchOnWake: (Boolean) -> Unit,
+    onRestoreCompleted: () -> Unit,
     onToggleWatchPackage: (String, Boolean) -> Unit,
     onSetRemoteButtonTarget: (RemoteButton, String) -> Unit,
     onSetRemoteButtonCustomKey: (RemoteButton, Int, Int) -> Unit,
@@ -101,7 +202,13 @@ fun CustomizeDialog(
                 onDismiss()
                 return
             }
+            CustomizePage.ThemeWallpaper -> CustomizePage.Main
+            CustomizePage.WallpaperLocalFile -> CustomizePage.ThemeWallpaper
+            CustomizePage.WallpaperUrl -> CustomizePage.ThemeWallpaper
+            CustomizePage.Language -> CustomizePage.Main
             CustomizePage.WatchSources -> CustomizePage.Main
+            CustomizePage.AutoLaunch -> CustomizePage.Main
+            CustomizePage.BackupRestore -> CustomizePage.Main
             CustomizePage.RemoteButtonsList -> CustomizePage.Main
             is CustomizePage.RemoteButtonDetail -> CustomizePage.RemoteButtonsList
             is CustomizePage.CaptureKey -> CustomizePage.RemoteButtonDetail(current.button)
@@ -114,117 +221,278 @@ fun CustomizeDialog(
         onDismissRequest = ::navigateBack,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        when (val current = page) {
-            CustomizePage.Main -> {
-                MainCustomizePanel(
-                    showWatchRow = showWatchRow,
-                    appColumns = appColumns,
-                    backToAmbient = backToAmbient,
-                    enabledCount = apps.count { it.packageName !in disabledWatchPackages },
-                    totalCount = apps.size,
-                    onToggleWatchRow = onToggleWatchRow,
-                    onSetAppColumns = onSetAppColumns,
-                    onToggleBackToAmbient = onToggleBackToAmbient,
-                    onOpenSources = { page = CustomizePage.WatchSources },
-                    onOpenRemoteButtons = { page = CustomizePage.RemoteButtonsList },
-                    onRefresh = onRefresh,
-                )
-            }
-            CustomizePage.WatchSources -> {
-                WatchSourcesPanel(
-                    apps = apps,
-                    disabledWatchPackages = disabledWatchPackages,
-                    activeWatchPackages = activeWatchPackages,
-                    onToggleWatchPackage = onToggleWatchPackage,
-                    onBack = ::navigateBack,
-                )
-            }
-            CustomizePage.RemoteButtonsList -> {
-                RemoteButtonsPanel(
-                    configs = remoteButtons,
-                    customMappings = customKeyMappings,
-                    apps = apps,
-                    overrideHomeKey = overrideHomeKey,
-                    onToggleOverrideHomeKey = onToggleOverrideHomeKey,
-                    onSelectButton = { button -> page = CustomizePage.RemoteButtonDetail(button) },
-                    onSelectCustomMapping = { mapping ->
-                        page = CustomizePage.CustomKeyDetail(
-                            keyCode = mapping.keyCode,
-                            scanCode = mapping.scanCode,
-                            isNew = false,
+        val dialogWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
+        SideEffect {
+            dialogWindow?.setDimAmount(0f)
+        }
+
+        LocaleHelper.ProvideAppLocale(language.code) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.horizontalGradient(
+                            0.0f to Color.Black.copy(alpha = 0.18f),
+                            0.45f to Color.Black.copy(alpha = 0.45f),
+                            1.0f to Color.Black.copy(alpha = 0.82f),
                         )
-                    },
-                    onAddCustomKey = { page = CustomizePage.CaptureNewCustomKey },
-                    onBack = ::navigateBack,
-                )
-            }
-            is CustomizePage.RemoteButtonDetail -> {
-                val config = remoteButtons.firstOrNull { it.button == current.button }
-                    ?: RemoteButtonConfig(current.button)
-                RemoteButtonDetailPanel(
-                    config = config,
-                    apps = apps,
-                    onSelectTarget = { target ->
-                        onSetRemoteButtonTarget(current.button, target)
-                        page = CustomizePage.RemoteButtonsList
-                    },
-                    onStartCaptureKey = { page = CustomizePage.CaptureKey(current.button) },
-                    onClearCustomKey = {
-                        onSetRemoteButtonCustomKey(current.button, 0, 0)
-                    },
-                    onBack = ::navigateBack,
-                )
-            }
-            is CustomizePage.CaptureKey -> {
-                val context = LocalContext.current
-                CaptureKeyPanel(
-                    title = "Nhận diện ${current.button.title}",
-                    promptText = "Hãy bấm phím bạn muốn gán làm \"${current.button.title}\" trên điều khiển.\n(Các phím điều hướng, OK, Back, Home và Âm lượng sẽ được bỏ qua)",
-                    onKeyCaptured = { keyCode, scanCode ->
-                        val label = RemoteButtons.formatKeyLabel(keyCode, scanCode)
-                        Toast.makeText(context, "Đã gán phím $label cho ${current.button.title}", Toast.LENGTH_SHORT).show()
-                        onSetRemoteButtonCustomKey(current.button, keyCode, scanCode)
-                        page = CustomizePage.RemoteButtonDetail(current.button)
-                    },
-                    onCancel = ::navigateBack,
-                )
-            }
-            CustomizePage.CaptureNewCustomKey -> {
-                CaptureKeyPanel(
-                    title = "Gán phím tùy chỉnh",
-                    promptText = "Hãy bấm phím bất kỳ trên điều khiển từ xa mà bạn muốn nhận diện và gán chức năng.\n(Các phím điều hướng, OK, Back, Home và Âm lượng sẽ được bỏ qua)",
-                    onKeyCaptured = { keyCode, scanCode ->
-                        val effectiveScan = if (keyCode > 0 || scanCode == 240) 0 else scanCode
-                        page = CustomizePage.CustomKeyDetail(
-                            keyCode = keyCode,
-                            scanCode = effectiveScan,
-                            isNew = true,
+                    )
+                    .padding(
+                        start = SAFE_AREA_HORIZONTAL,
+                        end = SAFE_AREA_HORIZONTAL,
+                        top = SAFE_AREA_VERTICAL,
+                        bottom = SAFE_AREA_VERTICAL,
+                    ),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Column(
+                    Modifier
+                        .width(SHEET_WIDTH)
+                        .fillMaxHeight()
+                        .clip(SheetShape)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    ToolkitColors.SurfaceRaised,
+                                    ToolkitColors.Surface,
+                                )
+                            )
                         )
-                    },
-                    onCancel = ::navigateBack,
-                )
-            }
-            is CustomizePage.CustomKeyDetail -> {
-                val existingTarget = customKeyMappings.firstOrNull {
-                    (current.keyCode > 0 && it.keyCode == current.keyCode) ||
-                        (current.keyCode <= 0 && current.scanCode > 0 && it.scanCode == current.scanCode)
-                }?.target
-                CustomKeyDetailPanel(
-                    keyCode = current.keyCode,
-                    scanCode = current.scanCode,
-                    currentTarget = existingTarget,
-                    canRemove = !current.isNew || existingTarget != null,
-                    apps = apps,
-                    onSelectTarget = { target ->
-                        onUpsertCustomKeyMapping(current.keyCode, current.scanCode, target)
-                        page = CustomizePage.RemoteButtonsList
-                    },
-                    onRemove = {
-                        onRemoveCustomKeyMapping(current.keyCode, current.scanCode)
-                        page = CustomizePage.RemoteButtonsList
-                    },
-                    onBack = ::navigateBack,
-                )
+                        .border(1.dp, Color.White.copy(alpha = 0.1f), SheetShape)
+                        .ignoreHeldSelectKey(),
+                ) {
+                    AnimatedContent(
+                        targetState = page,
+                        transitionSpec = {
+                            val forward = targetState.depth >= initialState.depth
+                            val slideIn = slideInHorizontally(tween(180)) { if (forward) it / 4 else -it / 4 } +
+                                fadeIn(tween(180))
+                            val slideOut = slideOutHorizontally(tween(150)) { if (forward) -it / 4 else it / 4 } +
+                                fadeOut(tween(150))
+                            slideIn togetherWith slideOut
+                        },
+                        label = "customizeSideSheetPage",
+                        modifier = Modifier.fillMaxSize(),
+                    ) { current ->
+                        when (current) {
+                            CustomizePage.Main -> {
+                                MainCustomizePanel(
+                                    showWatchRow = showWatchRow,
+                                    appColumns = appColumns,
+                                    backToAmbient = backToAmbient,
+                                    language = language,
+                                    themePalette = themePalette,
+                                    autoLaunchTarget = autoLaunchTarget,
+                                    apps = apps,
+                                    tvInputs = tvInputs,
+                                    enabledCount = apps.count { it.packageName !in disabledWatchPackages },
+                                    totalCount = apps.size,
+                                    onToggleWatchRow = onToggleWatchRow,
+                                    onSetAppColumns = onSetAppColumns,
+                                    onToggleBackToAmbient = onToggleBackToAmbient,
+                                    onSetLanguage = onSetLanguage,
+                                    onOpenThemeWallpaper = { page = CustomizePage.ThemeWallpaper },
+                                    onOpenLanguage = { page = CustomizePage.Language },
+                                    onOpenSources = { page = CustomizePage.WatchSources },
+                                    onOpenAutoLaunch = { page = CustomizePage.AutoLaunch },
+                                    onOpenRemoteButtons = { page = CustomizePage.RemoteButtonsList },
+                                    onOpenBackupRestore = { page = CustomizePage.BackupRestore },
+                                    onRefresh = onRefresh,
+                                )
+                            }
+                            CustomizePage.ThemeWallpaper -> {
+                                ThemeWallpaperPanel(
+                                    currentPalette = themePalette,
+                                    dynamicAmbient = dynamicAmbientColor,
+                                    hasCustomWallpaper = hasCustomWallpaper,
+                                    onSelectPalette = onSetThemePalette,
+                                    onToggleDynamicAmbient = onSetDynamicAmbient,
+                                    onOpenLocalFile = { page = CustomizePage.WallpaperLocalFile },
+                                    onOpenUrl = { page = CustomizePage.WallpaperUrl },
+                                    onClearWallpaper = onClearWallpaper,
+                                    onBack = ::navigateBack,
+                                )
+                            }
+                            CustomizePage.WallpaperLocalFile -> {
+                                val context = LocalContext.current
+                                WallpaperLocalFilePanel(
+                                    onSelectUri = { uri ->
+                                        onSetWallpaperFromUri(uri) { ok ->
+                                            Toast.makeText(
+                                                context,
+                                                context.getString(
+                                                    if (ok) R.string.toast_wallpaper_applied else R.string.toast_wallpaper_failed
+                                                ),
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                            if (ok) page = CustomizePage.ThemeWallpaper
+                                        }
+                                    },
+                                    onSelectFile = { file ->
+                                        onSetWallpaperFromFile(file) { ok ->
+                                            Toast.makeText(
+                                                context,
+                                                context.getString(
+                                                    if (ok) R.string.toast_wallpaper_applied else R.string.toast_wallpaper_failed
+                                                ),
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                            if (ok) page = CustomizePage.ThemeWallpaper
+                                        }
+                                    },
+                                    onBack = ::navigateBack,
+                                )
+                            }
+                            CustomizePage.WallpaperUrl -> {
+                                val context = LocalContext.current
+                                WallpaperUrlPanel(
+                                    onApplyUrl = { url ->
+                                        onSetWallpaperFromUrl(url) { ok ->
+                                            Toast.makeText(
+                                                context,
+                                                context.getString(
+                                                    if (ok) R.string.toast_wallpaper_applied else R.string.toast_wallpaper_failed
+                                                ),
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                            if (ok) page = CustomizePage.ThemeWallpaper
+                                        }
+                                    },
+                                    onBack = ::navigateBack,
+                                )
+                            }
+                            CustomizePage.Language -> {
+                                LanguagePanel(
+                                    currentLanguage = language,
+                                    onSelectLanguage = onSetLanguage,
+                                    onBack = ::navigateBack,
+                                )
+                            }
+                            CustomizePage.WatchSources -> {
+                                WatchSourcesPanel(
+                                    apps = apps,
+                                    disabledWatchPackages = disabledWatchPackages,
+                                    activeWatchPackages = activeWatchPackages,
+                                    onToggleWatchPackage = onToggleWatchPackage,
+                                    onBack = ::navigateBack,
+                                )
+                            }
+                            CustomizePage.AutoLaunch -> {
+                                AutoLaunchPanel(
+                                    currentTarget = autoLaunchTarget,
+                                    onBoot = autoLaunchOnBoot,
+                                    onWake = autoLaunchOnWake,
+                                    tvInputs = tvInputs,
+                                    apps = apps,
+                                    onToggleBoot = onSetAutoLaunchOnBoot,
+                                    onToggleWake = onSetAutoLaunchOnWake,
+                                    onSelectTarget = onSetAutoLaunchTarget,
+                                    onBack = ::navigateBack,
+                                )
+                            }
+                            CustomizePage.BackupRestore -> {
+                                BackupRestorePanel(
+                                    onRestoreCompleted = onRestoreCompleted,
+                                    onBack = ::navigateBack,
+                                )
+                            }
+                            CustomizePage.RemoteButtonsList -> {
+                                RemoteButtonsPanel(
+                                    configs = remoteButtons,
+                                    customMappings = customKeyMappings,
+                                    apps = apps,
+                                    overrideHomeKey = overrideHomeKey,
+                                    onToggleOverrideHomeKey = onToggleOverrideHomeKey,
+                                    onSelectButton = { button -> page = CustomizePage.RemoteButtonDetail(button) },
+                                    onSelectCustomMapping = { mapping ->
+                                        page = CustomizePage.CustomKeyDetail(
+                                            keyCode = mapping.keyCode,
+                                            scanCode = mapping.scanCode,
+                                            isNew = false,
+                                        )
+                                    },
+                                    onAddCustomKey = { page = CustomizePage.CaptureNewCustomKey },
+                                    onBack = ::navigateBack,
+                                )
+                            }
+                            is CustomizePage.RemoteButtonDetail -> {
+                                val config = remoteButtons.firstOrNull { it.button == current.button }
+                                    ?: RemoteButtonConfig(current.button)
+                                RemoteButtonDetailPanel(
+                                    config = config,
+                                    apps = apps,
+                                    onSelectTarget = { target ->
+                                        onSetRemoteButtonTarget(current.button, target)
+                                        page = CustomizePage.RemoteButtonsList
+                                    },
+                                    onStartCaptureKey = { page = CustomizePage.CaptureKey(current.button) },
+                                    onClearCustomKey = {
+                                        onSetRemoteButtonCustomKey(current.button, 0, 0)
+                                    },
+                                    onBack = ::navigateBack,
+                                )
+                            }
+                            is CustomizePage.CaptureKey -> {
+                                val context = LocalContext.current
+                                val buttonTitle = stringResource(current.button.titleRes)
+                                CaptureKeyPanel(
+                                    breadcrumb = stringResource(R.string.customize_remote_buttons),
+                                    title = stringResource(R.string.remote_capture_button_title, buttonTitle),
+                                    promptText = stringResource(R.string.remote_capture_button_prompt, buttonTitle),
+                                    onKeyCaptured = { keyCode, scanCode ->
+                                        val label = RemoteButtons.formatKeyLabel(keyCode, scanCode)
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.toast_assigned_key_to_button, label, buttonTitle),
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                        onSetRemoteButtonCustomKey(current.button, keyCode, scanCode)
+                                        page = CustomizePage.RemoteButtonDetail(current.button)
+                                    },
+                                    onCancel = ::navigateBack,
+                                )
+                            }
+                            CustomizePage.CaptureNewCustomKey -> {
+                                CaptureKeyPanel(
+                                    breadcrumb = stringResource(R.string.customize_remote_buttons),
+                                    title = stringResource(R.string.remote_add_custom_key),
+                                    promptText = stringResource(R.string.remote_capture_custom_prompt),
+                                    onKeyCaptured = { keyCode, scanCode ->
+                                        val effectiveScan = if (keyCode > 0 || scanCode == 240) 0 else scanCode
+                                        page = CustomizePage.CustomKeyDetail(
+                                            keyCode = keyCode,
+                                            scanCode = effectiveScan,
+                                            isNew = true,
+                                        )
+                                    },
+                                    onCancel = ::navigateBack,
+                                )
+                            }
+                            is CustomizePage.CustomKeyDetail -> {
+                                val existingTarget = customKeyMappings.firstOrNull {
+                                    (current.keyCode > 0 && it.keyCode == current.keyCode) ||
+                                        (current.keyCode <= 0 && current.scanCode > 0 && it.scanCode == current.scanCode)
+                                }?.target
+                                CustomKeyDetailPanel(
+                                    keyCode = current.keyCode,
+                                    scanCode = current.scanCode,
+                                    currentTarget = existingTarget,
+                                    canRemove = !current.isNew || existingTarget != null,
+                                    apps = apps,
+                                    onSelectTarget = { target ->
+                                        onUpsertCustomKeyMapping(current.keyCode, current.scanCode, target)
+                                        page = CustomizePage.RemoteButtonsList
+                                    },
+                                    onRemove = {
+                                        onRemoveCustomKeyMapping(current.keyCode, current.scanCode)
+                                        page = CustomizePage.RemoteButtonsList
+                                    },
+                                    onBack = ::navigateBack,
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -235,44 +503,60 @@ private fun MainCustomizePanel(
     showWatchRow: Boolean,
     appColumns: Int,
     backToAmbient: Boolean,
+    language: AppLanguage,
+    themePalette: AppThemePalette,
+    autoLaunchTarget: String,
+    apps: List<LauncherApp>,
+    tvInputs: List<TvInputEntry>,
     enabledCount: Int,
     totalCount: Int,
     onToggleWatchRow: (Boolean) -> Unit,
     onSetAppColumns: (Int) -> Unit,
     onToggleBackToAmbient: (Boolean) -> Unit,
+    onSetLanguage: (AppLanguage) -> Unit,
+    onOpenThemeWallpaper: () -> Unit,
+    onOpenLanguage: () -> Unit,
     onOpenSources: () -> Unit,
+    onOpenAutoLaunch: () -> Unit,
     onOpenRemoteButtons: () -> Unit,
+    onOpenBackupRestore: () -> Unit,
     onRefresh: () -> Unit,
 ) {
     val context = LocalContext.current
     val firstAction = remember { FocusRequester() }
+    val appsByPkg = remember(apps) { apps.associateBy { it.packageName } }
     LaunchedEffect(Unit) { firstAction.requestFocusWhenReady() }
 
-    Column(
-        Modifier
-            .width(480.dp)
-            .clip(PanelShape)
-            .background(ToolkitColors.SurfaceRaised)
-            .border(1.dp, Color.White.copy(alpha = 0.08f), PanelShape)
-            .ignoreHeldSelectKey(),
-    ) {
-        DialogHeader(
-            title = "Tùy chỉnh",
-            subtitle = "Cài đặt màn hình chính và phím tắt điều khiển",
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            title = stringResource(R.string.customize_title),
+            subtitle = stringResource(R.string.customize_subtitle),
         )
-        Column(
-            Modifier.padding(12.dp),
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.weight(1f),
         ) {
-            ListItem(
-                selected = false,
-                onClick = {
-                    val next = if (appColumns >= 6) 4 else appColumns + 1
-                    onSetAppColumns(next)
-                },
-                modifier = Modifier
-                    .focusRequester(firstAction)
-                    .onPreviewKeyEvent { event ->
+            item(key = "theme_wallpaper") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.Palette,
+                    title = stringResource(R.string.customize_theme_wallpaper),
+                    subtitle = stringResource(themePalette.titleRes),
+                    onClick = onOpenThemeWallpaper,
+                    modifier = Modifier.focusRequester(firstAction),
+                    showChevron = true,
+                )
+            }
+            item(key = "app_columns") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.GridView,
+                    title = stringResource(R.string.customize_app_grid),
+                    subtitle = stringResource(R.string.customize_app_grid_subtitle, appColumns),
+                    onClick = {
+                        val next = if (appColumns >= 6) 4 else appColumns + 1
+                        onSetAppColumns(next)
+                    },
+                    modifier = Modifier.onPreviewKeyEvent { event ->
                         if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                         when (event.nativeKeyEvent.keyCode) {
                             KeyEvent.KEYCODE_DPAD_LEFT -> {
@@ -286,131 +570,693 @@ private fun MainCustomizePanel(
                             else -> false
                         }
                     },
-                headlineContent = {
-                    Text("Lưới ứng dụng", style = MaterialTheme.typography.titleMedium)
-                },
-                supportingContent = {
-                    Text(
-                        "Hiển thị $appColumns mục trên mỗi hàng",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                },
-                trailingContent = {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        listOf(4, 5, 6).forEach { count ->
-                            val active = count == appColumns
-                            val pillShape = RoundedCornerShape(8.dp)
+                    trailingContent = {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            listOf(4, 5, 6).forEach { count ->
+                                val active = count == appColumns
+                                val pillShape = RoundedCornerShape(6.dp)
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .background(
+                                            if (active) ToolkitColors.Accent else ToolkitColors.OnSurface.copy(alpha = 0.08f),
+                                            pillShape,
+                                        )
+                                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                                ) {
+                                    Text(
+                                        "$count",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = if (active) ToolkitColors.Background else ToolkitColors.OnSurfaceMuted,
+                                    )
+                                }
+                            }
+                        }
+                    },
+                )
+            }
+            item(key = "language") {
+                val languages = AppLanguage.entries
+                TvSettingsItem(
+                    icon = Icons.Outlined.Language,
+                    title = stringResource(R.string.customize_language),
+                    subtitle = language.nativeName,
+                    onClick = onOpenLanguage,
+                    modifier = Modifier.onPreviewKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        val idx = languages.indexOf(language).coerceAtLeast(0)
+                        when (event.nativeKeyEvent.keyCode) {
+                            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                                val prev = languages[(idx - 1 + languages.size) % languages.size]
+                                onSetLanguage(prev)
+                                true
+                            }
+                            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                val next = languages[(idx + 1) % languages.size]
+                                onSetLanguage(next)
+                                true
+                            }
+                            else -> false
+                        }
+                    },
+                    trailingContent = {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            languages.forEach { lang ->
+                                val active = lang == language
+                                val pillShape = RoundedCornerShape(6.dp)
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .background(
+                                            if (active) ToolkitColors.Accent else ToolkitColors.OnSurface.copy(alpha = 0.08f),
+                                            pillShape,
+                                        )
+                                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                                ) {
+                                    Text(
+                                        lang.code.uppercase(),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = if (active) ToolkitColors.Background else ToolkitColors.OnSurfaceMuted,
+                                    )
+                                }
+                            }
+                        }
+                    },
+                )
+            }
+            item(key = "show_watch_row") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.PlayCircleOutline,
+                    title = stringResource(R.string.customize_show_watch_row),
+                    subtitle = if (showWatchRow) stringResource(R.string.customize_show_watch_row_on)
+                    else stringResource(R.string.customize_show_watch_row_off),
+                    onClick = { onToggleWatchRow(!showWatchRow) },
+                    trailingContent = {
+                        TvSwitch(checked = showWatchRow)
+                    },
+                )
+            }
+            item(key = "watch_sources") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.VideoLibrary,
+                    title = stringResource(R.string.customize_watch_sources),
+                    subtitle = stringResource(R.string.customize_watch_sources_subtitle, enabledCount, totalCount),
+                    onClick = onOpenSources,
+                    showChevron = true,
+                )
+            }
+            item(key = "auto_launch") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.PowerSettingsNew,
+                    title = stringResource(R.string.customize_auto_launch),
+                    subtitle = AutoLaunchManager.formatTargetLabel(context, autoLaunchTarget, appsByPkg, tvInputs),
+                    onClick = onOpenAutoLaunch,
+                    showChevron = true,
+                )
+            }
+            item(key = "back_to_ambient") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.Bedtime,
+                    title = stringResource(R.string.customize_back_to_ambient),
+                    subtitle = if (backToAmbient) stringResource(R.string.customize_back_to_ambient_on)
+                    else stringResource(R.string.customize_back_to_ambient_off),
+                    onClick = { onToggleBackToAmbient(!backToAmbient) },
+                    trailingContent = {
+                        TvSwitch(checked = backToAmbient)
+                    },
+                )
+            }
+            item(key = "remote_buttons") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.SettingsRemote,
+                    title = stringResource(R.string.customize_remote_buttons),
+                    subtitle = stringResource(R.string.customize_remote_buttons_subtitle),
+                    onClick = onOpenRemoteButtons,
+                    showChevron = true,
+                )
+            }
+            item(key = "backup_restore") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.Backup,
+                    title = stringResource(R.string.customize_backup_restore),
+                    subtitle = stringResource(R.string.customize_backup_restore_subtitle),
+                    onClick = onOpenBackupRestore,
+                    showChevron = true,
+                )
+            }
+            item(key = "refresh") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.Refresh,
+                    title = stringResource(R.string.customize_refresh),
+                    subtitle = stringResource(R.string.customize_refresh_subtitle),
+                    onClick = {
+                        onRefresh()
+                        Toast.makeText(context, context.getString(R.string.toast_refreshed), Toast.LENGTH_SHORT).show()
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemeWallpaperPanel(
+    currentPalette: AppThemePalette,
+    dynamicAmbient: Boolean,
+    hasCustomWallpaper: Boolean,
+    onSelectPalette: (AppThemePalette) -> Unit,
+    onToggleDynamicAmbient: (Boolean) -> Unit,
+    onOpenLocalFile: () -> Unit,
+    onOpenUrl: () -> Unit,
+    onClearWallpaper: () -> Unit,
+    onBack: () -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    val context = LocalContext.current
+    val firstItem = remember { FocusRequester() }
+    val palettes = AppThemePalette.entries
+
+    LaunchedEffect(Unit) { firstItem.requestFocusWhenReady() }
+
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.customize_title),
+            title = stringResource(R.string.customize_theme_wallpaper),
+            subtitle = stringResource(R.string.customize_theme_wallpaper_subtitle),
+        )
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            itemsIndexed(palettes, key = { _, p -> p.id }) { index, palette ->
+                val selected = palette == currentPalette
+                ListItem(
+                    selected = false,
+                    onClick = { onSelectPalette(palette) },
+                    modifier = if (index == 0) Modifier.focusRequester(firstItem) else Modifier,
+                    leadingContent = {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .background(palette.background, IconBoxShape)
+                                .border(1.5.dp, palette.accent, IconBoxShape),
+                        ) {
+                            Box(
+                                Modifier
+                                    .size(14.dp)
+                                    .background(palette.accent, CircleShape)
+                            )
+                        }
+                    },
+                    headlineContent = {
+                        Text(
+                            stringResource(palette.titleRes),
+                            style = MaterialTheme.typography.titleSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    supportingContent = {
+                        Text(
+                            stringResource(palette.subtitleRes),
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    trailingContent = if (selected) {
+                        {
                             Box(
                                 contentAlignment = Alignment.Center,
                                 modifier = Modifier
-                                    .background(
-                                        if (active) ToolkitColors.Accent else ToolkitColors.OnSurface.copy(alpha = 0.08f),
-                                        pillShape,
-                                    )
-                                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                                    .size(24.dp)
+                                    .background(ToolkitColors.Accent, CircleShape),
                             ) {
-                                Text(
-                                    "$count",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = if (active) ToolkitColors.Background else ToolkitColors.OnSurfaceMuted,
+                                Icon(
+                                    Icons.Outlined.Check,
+                                    contentDescription = stringResource(R.string.common_selected),
+                                    tint = ToolkitColors.Background,
+                                    modifier = Modifier.size(15.dp),
                                 )
                             }
                         }
-                    }
-                },
-                shape = ListItemDefaults.shape(RoundedCornerShape(14.dp)),
-                scale = ListItemDefaults.scale(focusedScale = 1.02f),
-                colors = ListItemDefaults.colors(
-                    containerColor = Color.Transparent,
-                    contentColor = ToolkitColors.OnSurface.copy(alpha = 0.7f),
-                    focusedContainerColor = ToolkitColors.OnSurface.copy(alpha = 0.12f),
-                    focusedContentColor = ToolkitColors.OnSurface,
-                ),
-            )
-            ListItem(
-                selected = false,
-                onClick = { onToggleWatchRow(!showWatchRow) },
-                headlineContent = {
-                    Text("Hiển thị hàng Tiếp tục xem", style = MaterialTheme.typography.titleMedium)
-                },
-                supportingContent = {
+                    } else null,
+                    shape = ListItemDefaults.shape(ItemShape),
+                    scale = ListItemDefaults.scale(focusedScale = 1.02f),
+                    colors = ListItemDefaults.colors(
+                        containerColor = Color.Transparent,
+                        contentColor = ToolkitColors.OnSurface.copy(alpha = 0.78f),
+                        focusedContainerColor = ToolkitColors.OnSurface.copy(alpha = 0.14f),
+                        focusedContentColor = ToolkitColors.OnSurface,
+                    ),
+                )
+            }
+            item(key = "dynamic_ambient") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.AutoAwesome,
+                    title = stringResource(R.string.customize_dynamic_ambient),
+                    subtitle = if (dynamicAmbient) stringResource(R.string.customize_dynamic_ambient_on)
+                    else stringResource(R.string.customize_dynamic_ambient_off),
+                    onClick = { onToggleDynamicAmbient(!dynamicAmbient) },
+                    trailingContent = {
+                        TvSwitch(checked = dynamicAmbient)
+                    },
+                )
+            }
+            item(key = "wallpaper_file") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.FolderOpen,
+                    title = stringResource(R.string.wallpaper_from_file),
+                    subtitle = stringResource(R.string.wallpaper_from_file_subtitle),
+                    onClick = onOpenLocalFile,
+                    showChevron = true,
+                )
+            }
+            item(key = "wallpaper_url") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.Link,
+                    title = stringResource(R.string.wallpaper_from_url),
+                    subtitle = stringResource(R.string.wallpaper_from_url_subtitle),
+                    onClick = onOpenUrl,
+                    showChevron = true,
+                )
+            }
+            if (hasCustomWallpaper) {
+                item(key = "wallpaper_clear") {
+                    TvSettingsItem(
+                        icon = Icons.Outlined.DeleteOutline,
+                        title = stringResource(R.string.wallpaper_clear),
+                        subtitle = stringResource(R.string.wallpaper_clear_subtitle),
+                        onClick = {
+                            onClearWallpaper()
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.toast_wallpaper_cleared),
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        },
+                        danger = true,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WallpaperLocalFilePanel(
+    onSelectUri: (Uri) -> Unit,
+    onSelectFile: (File) -> Unit,
+    onBack: () -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    val context = LocalContext.current
+    val firstItem = remember { FocusRequester() }
+    var localFiles by remember { mutableStateOf<List<File>>(emptyList()) }
+    val documentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) onSelectUri(uri)
+    }
+
+    LaunchedEffect(Unit) {
+        firstItem.requestFocusWhenReady()
+        localFiles = withContext(Dispatchers.IO) { WallpaperStore.scanLocalImages() }
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.customize_theme_wallpaper),
+            title = stringResource(R.string.wallpaper_from_file),
+            subtitle = stringResource(R.string.wallpaper_from_file_subtitle),
+        )
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            item(key = "system_picker") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.FolderOpen,
+                    title = stringResource(R.string.wallpaper_system_picker),
+                    subtitle = stringResource(R.string.wallpaper_system_picker_subtitle),
+                    onClick = {
+                        runCatching { documentLauncher.launch(arrayOf("image/*")) }.onFailure {
+                            Toast.makeText(context, context.getString(R.string.toast_could_not_open), Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.focusRequester(firstItem),
+                    showChevron = true,
+                )
+            }
+            if (localFiles.isEmpty()) {
+                item(key = "empty_notice") {
                     Text(
-                        if (showWatchRow) "Đang hiện trên màn hình chính" else "Đang ẩn khỏi màn hình chính",
-                        style = MaterialTheme.typography.bodyMedium,
+                        stringResource(R.string.wallpaper_local_empty),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = ToolkitColors.OnSurfaceMuted,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
                     )
-                },
-                trailingContent = {
-                    Switch(
-                        checked = showWatchRow,
-                        onCheckedChange = null,
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = ToolkitColors.Background,
-                            checkedTrackColor = ToolkitColors.Accent,
-                        ),
+                }
+            } else {
+                itemsIndexed(localFiles, key = { _, f -> f.absolutePath }) { _, file ->
+                    TvSettingsItem(
+                        icon = Icons.Outlined.Image,
+                        title = file.name,
+                        subtitle = file.parentFile?.name ?: file.absolutePath,
+                        onClick = { onSelectFile(file) },
                     )
-                },
-                shape = ListItemDefaults.shape(RoundedCornerShape(14.dp)),
-                scale = ListItemDefaults.scale(focusedScale = 1.02f),
-                colors = ListItemDefaults.colors(
-                    containerColor = Color.Transparent,
-                    contentColor = ToolkitColors.OnSurface.copy(alpha = 0.7f),
-                    focusedContainerColor = ToolkitColors.OnSurface.copy(alpha = 0.12f),
-                    focusedContentColor = ToolkitColors.OnSurface,
-                ),
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WallpaperUrlPanel(
+    onApplyUrl: (String) -> Unit,
+    onBack: () -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    var urlText by remember { mutableStateOf("https://") }
+    val applyFocus = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) { applyFocus.requestFocusWhenReady() }
+
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.customize_theme_wallpaper),
+            title = stringResource(R.string.wallpaper_from_url),
+            subtitle = stringResource(R.string.wallpaper_from_url_subtitle),
+        )
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                stringResource(R.string.wallpaper_url_prompt),
+                style = MaterialTheme.typography.bodySmall,
+                color = ToolkitColors.OnSurfaceMuted,
             )
-            ActionItem(
-                title = "Nguồn ứng dụng Tiếp tục xem",
-                subtitle = "Đang bật $enabledCount/$totalCount ứng dụng",
-                onClick = onOpenSources,
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .background(ToolkitColors.OnSurface.copy(alpha = 0.08f), ItemShape)
+                    .border(1.dp, ToolkitColors.Accent.copy(alpha = 0.5f), ItemShape)
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+            ) {
+                BasicTextField(
+                    value = urlText,
+                    onValueChange = { urlText = it },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = ToolkitColors.OnSurface),
+                    cursorBrush = SolidColor(ToolkitColors.Accent),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Uri,
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = { if (urlText.isNotBlank()) onApplyUrl(urlText) }
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            TvSettingsItem(
+                icon = Icons.Outlined.FileDownload,
+                title = stringResource(R.string.wallpaper_url_apply),
+                subtitle = stringResource(R.string.wallpaper_url_apply_subtitle),
+                onClick = { if (urlText.isNotBlank()) onApplyUrl(urlText) },
+                modifier = Modifier.focusRequester(applyFocus),
             )
-            ListItem(
-                selected = false,
-                onClick = { onToggleBackToAmbient(!backToAmbient) },
-                headlineContent = {
-                    Text("Bấm Back bật Bảo vệ màn hình", style = MaterialTheme.typography.titleMedium)
-                },
-                supportingContent = {
-                    Text(
-                        if (backToAmbient) "Mở Ambient Mode khi bấm Back ở mục đầu tiên"
-                        else "Không mở bảo vệ màn hình khi bấm Back",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                },
-                trailingContent = {
-                    Switch(
-                        checked = backToAmbient,
-                        onCheckedChange = null,
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = ToolkitColors.Background,
-                            checkedTrackColor = ToolkitColors.Accent,
-                        ),
-                    )
-                },
-                shape = ListItemDefaults.shape(RoundedCornerShape(14.dp)),
-                scale = ListItemDefaults.scale(focusedScale = 1.02f),
-                colors = ListItemDefaults.colors(
-                    containerColor = Color.Transparent,
-                    contentColor = ToolkitColors.OnSurface.copy(alpha = 0.7f),
-                    focusedContainerColor = ToolkitColors.OnSurface.copy(alpha = 0.12f),
-                    focusedContentColor = ToolkitColors.OnSurface,
-                ),
+            TvSettingsItem(
+                icon = Icons.Outlined.Block,
+                title = stringResource(R.string.common_cancel),
+                subtitle = stringResource(R.string.remote_capture_cancel_subtitle),
+                onClick = onBack,
             )
-            ActionItem(
-                title = "Gán phím điều khiển",
-                subtitle = "Phím Guide, YouTube, Cài đặt, Chuyển người dùng và phím tùy chỉnh",
-                onClick = onOpenRemoteButtons,
-            )
-            ActionItem(
-                title = "Làm mới nội dung",
-                subtitle = "Cập nhật lại danh sách Tiếp tục xem và ứng dụng",
-                onClick = {
-                    onRefresh()
-                    Toast.makeText(context, "Đã làm mới nội dung", Toast.LENGTH_SHORT).show()
-                },
-            )
+        }
+    }
+}
+
+@Composable
+private fun AutoLaunchPanel(
+    currentTarget: String,
+    onBoot: Boolean,
+    onWake: Boolean,
+    tvInputs: List<TvInputEntry>,
+    apps: List<LauncherApp>,
+    onToggleBoot: (Boolean) -> Unit,
+    onToggleWake: (Boolean) -> Unit,
+    onSelectTarget: (String) -> Unit,
+    onBack: () -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    val context = LocalContext.current
+    val firstItem = remember { FocusRequester() }
+    val sortedApps = remember(apps) { apps.sortedBy { it.label.lowercase() } }
+
+    LaunchedEffect(Unit) { firstItem.requestFocusWhenReady() }
+
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.customize_title),
+            title = stringResource(R.string.customize_auto_launch),
+            subtitle = stringResource(R.string.customize_auto_launch_panel_subtitle),
+        )
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            item(key = "toggle_boot") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.PowerSettingsNew,
+                    title = stringResource(R.string.auto_launch_on_boot),
+                    subtitle = if (onBoot) stringResource(R.string.auto_launch_on_boot_on)
+                    else stringResource(R.string.auto_launch_on_boot_off),
+                    onClick = { onToggleBoot(!onBoot) },
+                    modifier = Modifier.focusRequester(firstItem),
+                    trailingContent = { TvSwitch(checked = onBoot) },
+                )
+            }
+            item(key = "toggle_wake") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.Bedtime,
+                    title = stringResource(R.string.auto_launch_on_wake),
+                    subtitle = if (onWake) stringResource(R.string.auto_launch_on_wake_on)
+                    else stringResource(R.string.auto_launch_on_wake_off),
+                    onClick = { onToggleWake(!onWake) },
+                    trailingContent = { TvSwitch(checked = onWake) },
+                )
+            }
+            item(key = "target_off") {
+                val selected = currentTarget.isBlank()
+                ActionChoiceItem(
+                    icon = Icons.Outlined.Block,
+                    title = stringResource(R.string.auto_launch_off),
+                    subtitle = if (selected) stringResource(R.string.common_selected)
+                    else stringResource(R.string.auto_launch_off_subtitle),
+                    selected = selected,
+                    onClick = { onSelectTarget(AutoLaunchManager.TARGET_OFF) },
+                )
+            }
+            item(key = "target_live_tv") {
+                val selected = currentTarget == AutoLaunchManager.TARGET_LIVE_TV
+                ActionChoiceItem(
+                    icon = Icons.Outlined.LiveTv,
+                    title = stringResource(R.string.remote_action_live_tv),
+                    subtitle = if (selected) stringResource(R.string.common_selected)
+                    else stringResource(R.string.remote_action_live_tv_subtitle),
+                    selected = selected,
+                    onClick = { onSelectTarget(AutoLaunchManager.TARGET_LIVE_TV) },
+                )
+            }
+            itemsIndexed(tvInputs, key = { _, input -> "input_${input.id}" }) { _, input ->
+                val targetKey = "${AutoLaunchManager.INPUT_PREFIX}${input.id}"
+                val selected = currentTarget == targetKey
+                val title = input.displayTitle(context)
+                ActionChoiceItem(
+                    icon = Icons.Outlined.Input,
+                    appIcon = input.icon,
+                    title = title,
+                    subtitle = if (selected) stringResource(R.string.common_selected)
+                    else stringResource(R.string.auto_launch_input_subtitle, input.stateLabel(context)),
+                    selected = selected,
+                    onClick = { onSelectTarget(targetKey) },
+                )
+            }
+            itemsIndexed(sortedApps, key = { _, app -> "app_${app.packageName}" }) { _, app ->
+                val selected = currentTarget == app.packageName
+                ActionChoiceItem(
+                    appIcon = app.icon,
+                    title = app.label,
+                    subtitle = if (selected) stringResource(R.string.common_selected) else app.packageName,
+                    selected = selected,
+                    onClick = { onSelectTarget(app.packageName) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BackupRestorePanel(
+    onRestoreCompleted: () -> Unit,
+    onBack: () -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    val context = LocalContext.current
+    val firstItem = remember { FocusRequester() }
+
+    val createBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        if (uri != null) {
+            val ok = BackupManager.exportToUri(context, uri)
+            Toast.makeText(
+                context,
+                if (ok) context.getString(R.string.toast_backup_saved, BackupManager.DEFAULT_FILE_NAME)
+                else context.getString(R.string.toast_backup_failed),
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
+
+    val openBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            val ok = BackupManager.importFromUri(context, uri)
+            Toast.makeText(
+                context,
+                context.getString(if (ok) R.string.toast_restore_success else R.string.toast_restore_failed),
+                Toast.LENGTH_SHORT,
+            ).show()
+            if (ok) onRestoreCompleted()
+        }
+    }
+
+    LaunchedEffect(Unit) { firstItem.requestFocusWhenReady() }
+
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.customize_title),
+            title = stringResource(R.string.customize_backup_restore),
+            subtitle = stringResource(R.string.customize_backup_restore_subtitle),
+        )
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            item(key = "export_quick") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.FileUpload,
+                    title = stringResource(R.string.backup_export_quick),
+                    subtitle = stringResource(R.string.backup_export_quick_subtitle),
+                    onClick = {
+                        val savedPath = BackupManager.exportDefaultBackup(context)
+                        Toast.makeText(
+                            context,
+                            if (savedPath != null) context.getString(R.string.toast_backup_saved, savedPath)
+                            else context.getString(R.string.toast_backup_failed),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    },
+                    modifier = Modifier.focusRequester(firstItem),
+                )
+            }
+            item(key = "import_quick") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.FileDownload,
+                    title = stringResource(R.string.backup_import_quick),
+                    subtitle = stringResource(R.string.backup_import_quick_subtitle),
+                    onClick = {
+                        val ok = BackupManager.importDefaultBackup(context)
+                        Toast.makeText(
+                            context,
+                            context.getString(if (ok) R.string.toast_restore_success else R.string.toast_restore_failed),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                        if (ok) onRestoreCompleted()
+                    },
+                )
+            }
+            item(key = "export_file") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.FolderOpen,
+                    title = stringResource(R.string.backup_export_file),
+                    subtitle = stringResource(R.string.backup_export_file_subtitle),
+                    onClick = {
+                        runCatching { createBackupLauncher.launch(BackupManager.DEFAULT_FILE_NAME) }.onFailure {
+                            Toast.makeText(context, context.getString(R.string.toast_could_not_open), Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    showChevron = true,
+                )
+            }
+            item(key = "import_file") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.Restore,
+                    title = stringResource(R.string.backup_import_file),
+                    subtitle = stringResource(R.string.backup_import_file_subtitle),
+                    onClick = {
+                        runCatching { openBackupLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }.onFailure {
+                            Toast.makeText(context, context.getString(R.string.toast_could_not_open), Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    showChevron = true,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LanguagePanel(
+    currentLanguage: AppLanguage,
+    onSelectLanguage: (AppLanguage) -> Unit,
+    onBack: () -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    val firstItem = remember { FocusRequester() }
+    val languages = AppLanguage.entries
+
+    LaunchedEffect(Unit) { firstItem.requestFocusWhenReady() }
+
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.customize_title),
+            title = stringResource(R.string.customize_language),
+            subtitle = stringResource(R.string.customize_language_panel_subtitle),
+        )
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            itemsIndexed(languages, key = { _, lang -> lang.code }) { index, lang ->
+                val selected = lang == currentLanguage
+                ActionChoiceItem(
+                    icon = Icons.Outlined.Language,
+                    title = lang.nativeName,
+                    subtitle = if (selected) stringResource(R.string.common_selected) else lang.code.uppercase(),
+                    selected = selected,
+                    onClick = { onSelectLanguage(lang) },
+                    modifier = if (index == 0) Modifier.focusRequester(firstItem) else Modifier,
+                )
+            }
         }
     }
 }
@@ -435,44 +1281,28 @@ private fun RemoteButtonsPanel(
 
     LaunchedEffect(Unit) { firstItem.requestFocusWhenReady() }
 
-    Column(
-        Modifier
-            .width(520.dp)
-            .clip(PanelShape)
-            .background(ToolkitColors.SurfaceRaised)
-            .border(1.dp, Color.White.copy(alpha = 0.08f), PanelShape)
-            .ignoreHeldSelectKey(),
-    ) {
-        DialogHeader(
-            title = "Gán phím điều khiển",
-            subtitle = "Chọn ứng dụng hoặc hành động cho các phím trên remote",
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.customize_title),
+            title = stringResource(R.string.customize_remote_buttons),
+            subtitle = stringResource(R.string.customize_remote_buttons_panel_subtitle),
         )
         LazyColumn(
-            contentPadding = PaddingValues(12.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.heightIn(max = 400.dp),
+            modifier = Modifier.weight(1f),
         ) {
             item(key = "accessibility_status") {
-                ListItem(
-                    selected = false,
+                TvSettingsItem(
+                    icon = Icons.Outlined.AccessibilityNew,
+                    title = if (accessibilityEnabled) stringResource(R.string.remote_accessibility_on)
+                    else stringResource(R.string.remote_accessibility_off),
+                    subtitle = if (accessibilityEnabled) stringResource(R.string.remote_accessibility_on_subtitle)
+                    else stringResource(R.string.remote_accessibility_off_subtitle),
                     onClick = { RemoteButtons.openAccessibilitySettings(context) },
                     modifier = Modifier.focusRequester(firstItem),
-                    headlineContent = {
-                        Text(
-                            if (accessibilityEnabled) "Dịch vụ Trợ năng: Đang bật"
-                            else "Dịch vụ Trợ năng: Đang tắt",
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                    },
-                    supportingContent = {
-                        Text(
-                            if (accessibilityEnabled) "Đang nhận tín hiệu phím tắt ở mọi màn hình"
-                            else "Bấm vào đây để bật Toolkit trong Cài đặt › Trợ năng",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    },
                     trailingContent = {
-                        val badgeShape = RoundedCornerShape(8.dp)
+                        val badgeShape = RoundedCornerShape(6.dp)
                         Box(
                             modifier = Modifier
                                 .background(
@@ -480,167 +1310,78 @@ private fun RemoteButtonsPanel(
                                     else ToolkitColors.Danger.copy(alpha = 0.2f),
                                     badgeShape,
                                 )
-                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                                .padding(horizontal = 8.dp, vertical = 3.dp),
                         ) {
                             Text(
-                                if (accessibilityEnabled) "Đang bật" else "Bật ngay",
-                                style = MaterialTheme.typography.labelLarge,
+                                if (accessibilityEnabled) stringResource(R.string.remote_accessibility_badge_on)
+                                else stringResource(R.string.remote_accessibility_badge_off),
+                                style = MaterialTheme.typography.labelMedium,
                                 color = if (accessibilityEnabled) ToolkitColors.Accent else ToolkitColors.Danger,
                             )
                         }
                     },
-                    shape = ListItemDefaults.shape(RoundedCornerShape(14.dp)),
-                    scale = ListItemDefaults.scale(focusedScale = 1.02f),
-                    colors = ListItemDefaults.colors(
-                        containerColor = Color.Transparent,
-                        contentColor = ToolkitColors.OnSurface.copy(alpha = 0.7f),
-                        focusedContainerColor = ToolkitColors.OnSurface.copy(alpha = 0.12f),
-                        focusedContentColor = ToolkitColors.OnSurface,
-                    ),
                 )
             }
 
             item(key = "override_home") {
-                ListItem(
-                    selected = false,
+                TvSettingsItem(
+                    icon = Icons.Outlined.Home,
+                    title = stringResource(R.string.remote_override_home),
+                    subtitle = if (overrideHomeKey) stringResource(R.string.remote_override_home_on)
+                    else stringResource(R.string.remote_override_home_off),
                     onClick = { onToggleOverrideHomeKey(!overrideHomeKey) },
-                    headlineContent = {
-                        Text(
-                            "Ghi đè phím Home",
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                    },
-                    supportingContent = {
-                        Text(
-                            if (overrideHomeKey) "Đang bật — mở Toolkit khi chưa tắt launcher gốc"
-                            else "Đang tắt — dùng khi Toolkit đã là launcher mặc định",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    },
                     trailingContent = {
-                        Switch(
-                            checked = overrideHomeKey,
-                            onCheckedChange = null,
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = ToolkitColors.Background,
-                                checkedTrackColor = ToolkitColors.Accent,
-                            ),
-                        )
+                        TvSwitch(checked = overrideHomeKey)
                     },
-                    shape = ListItemDefaults.shape(RoundedCornerShape(14.dp)),
-                    scale = ListItemDefaults.scale(focusedScale = 1.02f),
-                    colors = ListItemDefaults.colors(
-                        containerColor = Color.Transparent,
-                        contentColor = ToolkitColors.OnSurface.copy(alpha = 0.7f),
-                        focusedContainerColor = ToolkitColors.OnSurface.copy(alpha = 0.12f),
-                        focusedContentColor = ToolkitColors.OnSurface,
-                    ),
                 )
             }
 
             itemsIndexed(configs, key = { _, cfg -> cfg.button.id }) { _, cfg ->
                 val assignedApp = appsByPkg[cfg.target]
                 val targetLabel = when (cfg.target) {
-                    RemoteButtons.TARGET_DEFAULT -> cfg.button.defaultActionLabel
-                    RemoteButtons.TARGET_DISABLED -> "Đã tắt (Không can thiệp)"
-                    else -> "Mở ứng dụng: ${assignedApp?.label ?: cfg.target}"
+                    RemoteButtons.TARGET_DEFAULT -> stringResource(cfg.button.defaultActionLabelRes)
+                    RemoteButtons.TARGET_DISABLED -> stringResource(R.string.remote_target_disabled)
+                    else -> stringResource(R.string.remote_target_open_app, assignedApp?.label ?: cfg.target)
                 }
                 val customKeyText = if (cfg.customKeyCode > 0 || cfg.customScanCode > 0) {
-                    " · Mã phím: ${RemoteButtons.formatKeyLabel(cfg.customKeyCode, cfg.customScanCode)}"
+                    stringResource(
+                        R.string.remote_custom_key_code_suffix,
+                        RemoteButtons.formatKeyLabel(cfg.customKeyCode, cfg.customScanCode),
+                    )
                 } else {
                     ""
                 }
 
-                ListItem(
-                    selected = false,
+                TvSettingsItem(
+                    icon = remoteButtonIcon(cfg.button),
+                    appIcon = assignedApp?.icon,
+                    title = stringResource(cfg.button.titleRes),
+                    subtitle = targetLabel + customKeyText,
                     onClick = { onSelectButton(cfg.button) },
-                    leadingContent = assignedApp?.let { app ->
-                        {
-                            Image(
-                                app.icon,
-                                contentDescription = app.label,
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(RoundedCornerShape(8.dp)),
-                            )
-                        }
-                    },
-                    headlineContent = {
-                        Text(
-                            cfg.button.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    supportingContent = {
-                        Text(
-                            targetLabel + customKeyText,
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    shape = ListItemDefaults.shape(RoundedCornerShape(14.dp)),
-                    scale = ListItemDefaults.scale(focusedScale = 1.02f),
-                    colors = ListItemDefaults.colors(
-                        containerColor = Color.Transparent,
-                        contentColor = ToolkitColors.OnSurface.copy(alpha = 0.7f),
-                        focusedContainerColor = ToolkitColors.OnSurface.copy(alpha = 0.12f),
-                        focusedContentColor = ToolkitColors.OnSurface,
-                    ),
+                    showChevron = true,
                 )
             }
 
             itemsIndexed(customMappings, key = { _, mapping -> "custom_${mapping.id}" }) { _, mapping ->
                 val assignedApp = appsByPkg[mapping.target]
                 val keyName = RemoteButtons.formatKeyLabel(mapping.keyCode, mapping.scanCode)
-                ListItem(
-                    selected = false,
+                TvSettingsItem(
+                    icon = Icons.Outlined.Keyboard,
+                    appIcon = assignedApp?.icon,
+                    title = stringResource(R.string.remote_custom_key_item_title, keyName),
+                    subtitle = RemoteButtons.formatCustomTargetLabel(context, mapping.target, appsByPkg),
                     onClick = { onSelectCustomMapping(mapping) },
-                    leadingContent = assignedApp?.let { app ->
-                        {
-                            Image(
-                                app.icon,
-                                contentDescription = app.label,
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(RoundedCornerShape(8.dp)),
-                            )
-                        }
-                    },
-                    headlineContent = {
-                        Text(
-                            "Phím tùy chỉnh ($keyName)",
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    supportingContent = {
-                        Text(
-                            RemoteButtons.formatCustomTargetLabel(mapping.target, appsByPkg),
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    shape = ListItemDefaults.shape(RoundedCornerShape(14.dp)),
-                    scale = ListItemDefaults.scale(focusedScale = 1.02f),
-                    colors = ListItemDefaults.colors(
-                        containerColor = Color.Transparent,
-                        contentColor = ToolkitColors.OnSurface.copy(alpha = 0.7f),
-                        focusedContainerColor = ToolkitColors.OnSurface.copy(alpha = 0.12f),
-                        focusedContentColor = ToolkitColors.OnSurface,
-                    ),
+                    showChevron = true,
                 )
             }
 
             item(key = "add_custom_key") {
-                ActionItem(
-                    title = "Gán phím tùy chỉnh",
-                    subtitle = "Nhận diện mã phím bất kỳ trên remote và gán mở ứng dụng",
+                TvSettingsItem(
+                    icon = Icons.Outlined.AddCircleOutline,
+                    title = stringResource(R.string.remote_add_custom_key),
+                    subtitle = stringResource(R.string.remote_add_custom_key_subtitle),
                     onClick = onAddCustomKey,
+                    showChevron = true,
                 )
             }
         }
@@ -666,31 +1407,30 @@ private fun CustomKeyDetailPanel(
 
     LaunchedEffect(Unit) { firstItem.requestFocusWhenReady() }
 
-    Column(
-        Modifier
-            .width(520.dp)
-            .clip(PanelShape)
-            .background(ToolkitColors.SurfaceRaised)
-            .border(1.dp, Color.White.copy(alpha = 0.08f), PanelShape)
-            .ignoreHeldSelectKey(),
-    ) {
-        DialogHeader(
-            title = "Phím $keyLabel",
-            subtitle = "Chọn ứng dụng hoặc hành động cho mã phím này",
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.customize_remote_buttons),
+            title = stringResource(R.string.remote_custom_detail_title, keyLabel),
+            subtitle = stringResource(R.string.remote_custom_detail_subtitle),
         )
         LazyColumn(
-            contentPadding = PaddingValues(12.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.heightIn(max = 390.dp),
+            modifier = Modifier.weight(1f),
         ) {
             if (canRemove) {
                 item(key = "remove_custom_key") {
-                    ActionItem(
-                        title = "Xóa phím tùy chỉnh này",
-                        subtitle = "Gỡ bỏ thiết lập gán phím cho $keyLabel",
+                    TvSettingsItem(
+                        icon = Icons.Outlined.DeleteOutline,
+                        title = stringResource(R.string.remote_custom_remove),
+                        subtitle = stringResource(R.string.remote_custom_remove_subtitle, keyLabel),
                         onClick = {
                             onRemove()
-                            Toast.makeText(context, "Đã xóa phím tùy chỉnh $keyLabel", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.toast_removed_custom_key, keyLabel),
+                                Toast.LENGTH_SHORT,
+                            ).show()
                         },
                         modifier = Modifier.focusRequester(firstItem),
                         danger = true,
@@ -700,8 +1440,10 @@ private fun CustomKeyDetailPanel(
             item(key = RemoteButtons.ACTION_LIVE_TV) {
                 val selected = currentTarget == RemoteButtons.ACTION_LIVE_TV
                 ActionChoiceItem(
-                    title = "Mở Truyền hình / Live TV",
-                    subtitle = if (selected) "Đang chọn" else "Mở ngõ vào truyền hình hoặc ứng dụng TV",
+                    icon = Icons.Outlined.LiveTv,
+                    title = stringResource(R.string.remote_action_live_tv),
+                    subtitle = if (selected) stringResource(R.string.common_selected)
+                    else stringResource(R.string.remote_action_live_tv_subtitle),
                     selected = selected,
                     onClick = { onSelectTarget(RemoteButtons.ACTION_LIVE_TV) },
                     modifier = if (!canRemove) Modifier.focusRequester(firstItem) else Modifier,
@@ -710,8 +1452,10 @@ private fun CustomKeyDetailPanel(
             item(key = RemoteButtons.ACTION_SYSTEM_SETTINGS) {
                 val selected = currentTarget == RemoteButtons.ACTION_SYSTEM_SETTINGS
                 ActionChoiceItem(
-                    title = "Mở Cài đặt hệ thống",
-                    subtitle = if (selected) "Đang chọn" else "Mở màn hình Cài đặt Android TV",
+                    icon = Icons.Outlined.Settings,
+                    title = stringResource(R.string.remote_action_system_settings),
+                    subtitle = if (selected) stringResource(R.string.common_selected)
+                    else stringResource(R.string.remote_action_system_settings_subtitle),
                     selected = selected,
                     onClick = { onSelectTarget(RemoteButtons.ACTION_SYSTEM_SETTINGS) },
                 )
@@ -719,65 +1463,22 @@ private fun CustomKeyDetailPanel(
             item(key = RemoteButtons.ACTION_SYSTEM_ACCOUNTS) {
                 val selected = currentTarget == RemoteButtons.ACTION_SYSTEM_ACCOUNTS
                 ActionChoiceItem(
-                    title = "Mở Tài khoản & Đăng nhập",
-                    subtitle = if (selected) "Đang chọn" else "Mở quản lý tài khoản Google TV",
+                    icon = Icons.Outlined.AccountCircle,
+                    title = stringResource(R.string.remote_action_system_accounts),
+                    subtitle = if (selected) stringResource(R.string.common_selected)
+                    else stringResource(R.string.remote_action_system_accounts_subtitle),
                     selected = selected,
                     onClick = { onSelectTarget(RemoteButtons.ACTION_SYSTEM_ACCOUNTS) },
                 )
             }
             itemsIndexed(sortedApps, key = { _, app -> app.packageName }) { _, app ->
                 val selected = currentTarget == app.packageName
-                ListItem(
-                    selected = false,
+                ActionChoiceItem(
+                    appIcon = app.icon,
+                    title = app.label,
+                    subtitle = if (selected) stringResource(R.string.remote_assigned_to_key, keyLabel) else app.packageName,
+                    selected = selected,
                     onClick = { onSelectTarget(app.packageName) },
-                    leadingContent = {
-                        Image(
-                            app.icon,
-                            contentDescription = app.label,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(8.dp)),
-                        )
-                    },
-                    headlineContent = {
-                        Text(
-                            app.label,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    supportingContent = {
-                        Text(
-                            if (selected) "Đang được gán cho phím $keyLabel" else app.packageName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    trailingContent = if (selected) {
-                        {
-                            Box(
-                                modifier = Modifier
-                                    .background(ToolkitColors.Accent, RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                            ) {
-                                Text(
-                                    "Đang chọn",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = ToolkitColors.Background,
-                                )
-                            }
-                        }
-                    } else null,
-                    shape = ListItemDefaults.shape(RoundedCornerShape(14.dp)),
-                    scale = ListItemDefaults.scale(focusedScale = 1.02f),
-                    colors = ListItemDefaults.colors(
-                        containerColor = Color.Transparent,
-                        contentColor = ToolkitColors.OnSurface.copy(alpha = 0.7f),
-                        focusedContainerColor = ToolkitColors.OnSurface.copy(alpha = 0.12f),
-                        focusedContentColor = ToolkitColors.OnSurface,
-                    ),
                 )
             }
         }
@@ -798,57 +1499,62 @@ private fun RemoteButtonDetailPanel(
     val firstItem = remember { FocusRequester() }
     val sortedApps = remember(apps) { apps.sortedBy { it.label.lowercase() } }
     val hasCustomKey = config.customKeyCode > 0 || config.customScanCode > 0
+    val buttonTitle = stringResource(config.button.titleRes)
 
     LaunchedEffect(Unit) { firstItem.requestFocusWhenReady() }
 
-    Column(
-        Modifier
-            .width(520.dp)
-            .clip(PanelShape)
-            .background(ToolkitColors.SurfaceRaised)
-            .border(1.dp, Color.White.copy(alpha = 0.08f), PanelShape)
-            .ignoreHeldSelectKey(),
-    ) {
-        DialogHeader(
-            title = config.button.title,
-            subtitle = "Chọn hành động hoặc ứng dụng mở khi bấm phím",
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.customize_remote_buttons),
+            title = buttonTitle,
+            subtitle = stringResource(R.string.remote_detail_subtitle),
         )
         LazyColumn(
-            contentPadding = PaddingValues(12.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.heightIn(max = 390.dp),
+            modifier = Modifier.weight(1f),
         ) {
             item(key = "action_default") {
                 val selected = config.target == RemoteButtons.TARGET_DEFAULT
                 ActionChoiceItem(
-                    title = config.button.defaultActionLabel,
-                    subtitle = if (selected) "Đang chọn" else "Sử dụng hành động mặc định cho phím này",
+                    icon = remoteButtonIcon(config.button),
+                    title = stringResource(config.button.defaultActionLabelRes),
+                    subtitle = if (selected) stringResource(R.string.common_selected)
+                    else stringResource(R.string.remote_detail_default_subtitle),
                     selected = selected,
                     onClick = { onSelectTarget(RemoteButtons.TARGET_DEFAULT) },
                     modifier = Modifier.focusRequester(firstItem),
                 )
             }
             item(key = "action_learn_key") {
-                ActionChoiceItem(
-                    title = "Nhận diện mã phím từ điều khiển",
+                TvSettingsItem(
+                    icon = Icons.Outlined.Sensors,
+                    title = stringResource(R.string.remote_learn_key),
                     subtitle = if (hasCustomKey) {
-                        "Đang dùng mã phím: ${RemoteButtons.formatKeyLabel(config.customKeyCode, config.customScanCode)}"
+                        stringResource(
+                            R.string.remote_learn_key_active,
+                            RemoteButtons.formatKeyLabel(config.customKeyCode, config.customScanCode),
+                        )
                     } else {
-                        "Dùng khi bấm phím trên remote chưa thấy phản hồi"
+                        stringResource(R.string.remote_learn_key_subtitle)
                     },
-                    selected = false,
                     onClick = onStartCaptureKey,
+                    showChevron = true,
                 )
             }
             if (hasCustomKey) {
                 item(key = "action_clear_key") {
-                    ActionChoiceItem(
-                        title = "Xóa mã phím đã nhận diện",
-                        subtitle = "Khôi phục về mã phím chuẩn mặc định",
-                        selected = false,
+                    TvSettingsItem(
+                        icon = Icons.Outlined.Restore,
+                        title = stringResource(R.string.remote_clear_key),
+                        subtitle = stringResource(R.string.remote_clear_key_subtitle),
                         onClick = {
                             onClearCustomKey()
-                            Toast.makeText(context, "Đã khôi phục mã phím mặc định", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.toast_restored_default_key),
+                                Toast.LENGTH_SHORT,
+                            ).show()
                         },
                     )
                 }
@@ -856,65 +1562,23 @@ private fun RemoteButtonDetailPanel(
             item(key = "action_disabled") {
                 val selected = config.target == RemoteButtons.TARGET_DISABLED
                 ActionChoiceItem(
-                    title = "Không can thiệp (Tắt)",
-                    subtitle = if (selected) "Đang chọn" else "Để hệ thống tự xử lý phím này",
+                    icon = Icons.Outlined.Block,
+                    title = stringResource(R.string.remote_disable_button),
+                    subtitle = if (selected) stringResource(R.string.common_selected)
+                    else stringResource(R.string.remote_disable_button_subtitle),
                     selected = selected,
                     onClick = { onSelectTarget(RemoteButtons.TARGET_DISABLED) },
                 )
             }
             itemsIndexed(sortedApps, key = { _, app -> app.packageName }) { _, app ->
                 val selected = config.target == app.packageName
-                ListItem(
-                    selected = false,
+                ActionChoiceItem(
+                    appIcon = app.icon,
+                    title = app.label,
+                    subtitle = if (selected) stringResource(R.string.remote_assigned_to_button, buttonTitle)
+                    else app.packageName,
+                    selected = selected,
                     onClick = { onSelectTarget(app.packageName) },
-                    leadingContent = {
-                        Image(
-                            app.icon,
-                            contentDescription = app.label,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(8.dp)),
-                        )
-                    },
-                    headlineContent = {
-                        Text(
-                            app.label,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    supportingContent = {
-                        Text(
-                            if (selected) "Đang được gán cho ${config.button.title}" else app.packageName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    trailingContent = if (selected) {
-                        {
-                            Box(
-                                modifier = Modifier
-                                    .background(ToolkitColors.Accent, RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                            ) {
-                                Text(
-                                    "Đang chọn",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = ToolkitColors.Background,
-                                )
-                            }
-                        }
-                    } else null,
-                    shape = ListItemDefaults.shape(RoundedCornerShape(14.dp)),
-                    scale = ListItemDefaults.scale(focusedScale = 1.02f),
-                    colors = ListItemDefaults.colors(
-                        containerColor = Color.Transparent,
-                        contentColor = ToolkitColors.OnSurface.copy(alpha = 0.7f),
-                        focusedContainerColor = ToolkitColors.OnSurface.copy(alpha = 0.12f),
-                        focusedContentColor = ToolkitColors.OnSurface,
-                    ),
                 )
             }
         }
@@ -922,61 +1586,8 @@ private fun RemoteButtonDetailPanel(
 }
 
 @Composable
-private fun ActionChoiceItem(
-    title: String,
-    subtitle: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    ListItem(
-        selected = false,
-        onClick = onClick,
-        modifier = modifier,
-        headlineContent = {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        },
-        supportingContent = {
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        },
-        trailingContent = if (selected) {
-            {
-                Box(
-                    modifier = Modifier
-                        .background(ToolkitColors.Accent, RoundedCornerShape(8.dp))
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
-                ) {
-                    Text(
-                        "Đang chọn",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = ToolkitColors.Background,
-                    )
-                }
-            }
-        } else null,
-        shape = ListItemDefaults.shape(RoundedCornerShape(14.dp)),
-        scale = ListItemDefaults.scale(focusedScale = 1.02f),
-        colors = ListItemDefaults.colors(
-            containerColor = Color.Transparent,
-            contentColor = ToolkitColors.OnSurface.copy(alpha = 0.7f),
-            focusedContainerColor = ToolkitColors.OnSurface.copy(alpha = 0.12f),
-            focusedContentColor = ToolkitColors.OnSurface,
-        ),
-    )
-}
-
-@Composable
 private fun CaptureKeyPanel(
+    breadcrumb: String,
     title: String,
     promptText: String,
     onKeyCaptured: (Int, Int) -> Unit,
@@ -1001,10 +1612,7 @@ private fun CaptureKeyPanel(
 
     Column(
         Modifier
-            .width(460.dp)
-            .clip(PanelShape)
-            .background(ToolkitColors.SurfaceRaised)
-            .border(1.dp, Color.White.copy(alpha = 0.08f), PanelShape)
+            .fillMaxSize()
             .onPreviewKeyEvent { event ->
                 val native = event.nativeKeyEvent
                 if (RemoteButtons.isCapturableKey(native)) {
@@ -1015,29 +1623,50 @@ private fun CaptureKeyPanel(
                 } else {
                     false
                 }
-            }
-            .ignoreHeldSelectKey(),
+            },
     ) {
-        DialogHeader(
+        SheetHeader(
+            breadcrumb = breadcrumb,
             title = title,
-            subtitle = "Nhấn phím tương ứng trên điều khiển từ xa",
+            subtitle = stringResource(R.string.remote_capture_subtitle),
         )
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 20.dp),
+                .weight(1f)
+                .padding(horizontal = 20.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(
-                promptText,
-                style = MaterialTheme.typography.bodyMedium,
-                color = ToolkitColors.OnSurface.copy(alpha = 0.85f),
-                textAlign = TextAlign.Center,
-            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.padding(top = 24.dp),
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(64.dp)
+                        .background(ToolkitColors.Accent.copy(alpha = 0.14f), CircleShape)
+                        .border(1.dp, ToolkitColors.Accent.copy(alpha = 0.4f), CircleShape),
+                ) {
+                    Icon(
+                        Icons.Outlined.SettingsRemote,
+                        contentDescription = null,
+                        tint = ToolkitColors.Accent,
+                        modifier = Modifier.size(30.dp),
+                    )
+                }
+                Text(
+                    promptText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = ToolkitColors.OnSurface.copy(alpha = 0.85f),
+                    textAlign = TextAlign.Center,
+                )
+            }
             ActionItem(
-                title = "Hủy",
-                subtitle = "Quay lại mà không thay đổi mã phím",
+                title = stringResource(R.string.common_cancel),
+                subtitle = stringResource(R.string.remote_capture_cancel_subtitle),
                 onClick = onCancel,
                 modifier = Modifier.focusRequester(cancelFocus),
             )
@@ -1064,75 +1693,33 @@ private fun WatchSourcesPanel(
         if (sortedApps.isNotEmpty()) firstItem.requestFocusWhenReady()
     }
 
-    Column(
-        Modifier
-            .width(500.dp)
-            .clip(PanelShape)
-            .background(ToolkitColors.SurfaceRaised)
-            .border(1.dp, Color.White.copy(alpha = 0.08f), PanelShape)
-            .ignoreHeldSelectKey(),
-    ) {
-        DialogHeader(
-            title = "Nguồn ứng dụng Tiếp tục xem",
-            subtitle = "Bật hoặc tắt hiển thị nội dung từ từng ứng dụng",
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.customize_title),
+            title = stringResource(R.string.customize_watch_sources),
+            subtitle = stringResource(R.string.customize_watch_sources_panel_subtitle),
         )
         LazyColumn(
-            contentPadding = PaddingValues(12.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.heightIn(max = 380.dp),
+            modifier = Modifier.weight(1f),
         ) {
             itemsIndexed(sortedApps, key = { _, app -> app.packageName }) { index, app ->
                 val enabled = app.packageName !in disabledWatchPackages
                 val hasActiveContent = app.packageName in activeWatchPackages
-                ListItem(
-                    selected = false,
+                TvSettingsItem(
+                    appIcon = app.icon,
+                    title = app.label,
+                    subtitle = when {
+                        !enabled -> stringResource(R.string.customize_watch_source_disabled)
+                        hasActiveContent -> stringResource(R.string.customize_watch_source_active)
+                        else -> stringResource(R.string.customize_watch_source_enabled)
+                    },
                     onClick = { onToggleWatchPackage(app.packageName, !enabled) },
                     modifier = if (index == 0) Modifier.focusRequester(firstItem) else Modifier,
-                    leadingContent = {
-                        Image(
-                            app.icon,
-                            contentDescription = app.label,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(8.dp)),
-                        )
-                    },
-                    headlineContent = {
-                        Text(
-                            app.label,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    supportingContent = {
-                        Text(
-                            when {
-                                !enabled -> "Đã tắt hiển thị"
-                                hasActiveContent -> "Đang có nội dung trong Tiếp tục xem"
-                                else -> "Cho phép hiển thị"
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    },
                     trailingContent = {
-                        Switch(
-                            checked = enabled,
-                            onCheckedChange = null,
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = ToolkitColors.Background,
-                                checkedTrackColor = ToolkitColors.Accent,
-                            ),
-                        )
+                        TvSwitch(checked = enabled)
                     },
-                    shape = ListItemDefaults.shape(RoundedCornerShape(14.dp)),
-                    scale = ListItemDefaults.scale(focusedScale = 1.02f),
-                    colors = ListItemDefaults.colors(
-                        containerColor = Color.Transparent,
-                        contentColor = ToolkitColors.OnSurface.copy(alpha = 0.7f),
-                        focusedContainerColor = ToolkitColors.OnSurface.copy(alpha = 0.12f),
-                        focusedContentColor = ToolkitColors.OnSurface,
-                    ),
                 )
             }
         }
@@ -1140,38 +1727,197 @@ private fun WatchSourcesPanel(
 }
 
 @Composable
-private fun DialogHeader(title: String, subtitle: String) {
+private fun SheetHeader(
+    title: String,
+    subtitle: String,
+    breadcrumb: String? = null,
+) {
     Column(
         Modifier
             .fillMaxWidth()
             .background(
                 Brush.verticalGradient(
-                    listOf(ToolkitColors.Accent.copy(alpha = 0.24f), ToolkitColors.Accent.copy(alpha = 0.05f))
+                    listOf(
+                        ToolkitColors.Accent.copy(alpha = 0.16f),
+                        ToolkitColors.Accent.copy(alpha = 0.02f),
+                    )
                 )
             )
             .drawBehind {
                 drawLine(
-                    Color.White.copy(alpha = 0.1f),
+                    Color.White.copy(alpha = 0.08f),
                     Offset(0f, size.height),
                     Offset(size.width, size.height),
                     strokeWidth = 1.dp.toPx(),
                 )
             }
-            .padding(horizontal = 28.dp, vertical = 22.dp),
+            .padding(horizontal = 24.dp, vertical = 20.dp),
     ) {
+        if (!breadcrumb.isNullOrBlank()) {
+            Text(
+                breadcrumb.uppercase(),
+                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
+                color = ToolkitColors.Accent,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(2.dp))
+        }
         Text(
             title,
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.titleLarge,
             color = ToolkitColors.OnSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+        Spacer(Modifier.height(2.dp))
         Text(
             subtitle,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             color = ToolkitColors.OnSurfaceMuted,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
     }
+}
+
+@Composable
+private fun TvSettingsItem(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    appIcon: androidx.compose.ui.graphics.ImageBitmap? = null,
+    showChevron: Boolean = false,
+    danger: Boolean = false,
+    trailingContent: (@Composable () -> Unit)? = null,
+) {
+    val tint = if (danger) ToolkitColors.Danger else ToolkitColors.OnSurface
+    ListItem(
+        selected = false,
+        onClick = onClick,
+        modifier = modifier,
+        leadingContent = if (appIcon != null || icon != null) {
+            {
+                if (appIcon != null) {
+                    Image(
+                        appIcon,
+                        contentDescription = title,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(IconBoxShape),
+                    )
+                } else if (icon != null) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .background(tint.copy(alpha = 0.08f), IconBoxShape),
+                    ) {
+                        Icon(
+                            icon,
+                            contentDescription = null,
+                            tint = if (danger) ToolkitColors.Danger else ToolkitColors.Accent,
+                            modifier = Modifier.size(19.dp),
+                        )
+                    }
+                }
+            }
+        } else null,
+        headlineContent = {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        supportingContent = {
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        trailingContent = when {
+            trailingContent != null -> trailingContent
+            showChevron -> {
+                {
+                    Icon(
+                        Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = ToolkitColors.OnSurfaceMuted,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+            else -> null
+        },
+        shape = ListItemDefaults.shape(ItemShape),
+        scale = ListItemDefaults.scale(focusedScale = 1.02f),
+        colors = ListItemDefaults.colors(
+            containerColor = Color.Transparent,
+            contentColor = tint.copy(alpha = 0.78f),
+            focusedContainerColor = tint.copy(alpha = 0.14f),
+            focusedContentColor = tint,
+        ),
+    )
+}
+
+@Composable
+private fun ActionChoiceItem(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    appIcon: androidx.compose.ui.graphics.ImageBitmap? = null,
+) {
+    TvSettingsItem(
+        title = title,
+        subtitle = subtitle,
+        onClick = onClick,
+        modifier = modifier,
+        icon = icon,
+        appIcon = appIcon,
+        trailingContent = if (selected) {
+            {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .background(ToolkitColors.Accent, CircleShape),
+                ) {
+                    Icon(
+                        Icons.Outlined.Check,
+                        contentDescription = stringResource(R.string.common_selected),
+                        tint = ToolkitColors.Background,
+                        modifier = Modifier.size(15.dp),
+                    )
+                }
+            }
+        } else null,
+    )
+}
+
+@Composable
+private fun TvSwitch(checked: Boolean) {
+    Switch(
+        checked = checked,
+        onCheckedChange = null,
+        colors = SwitchDefaults.colors(
+            checkedThumbColor = ToolkitColors.Background,
+            checkedTrackColor = ToolkitColors.Accent,
+        ),
+    )
+}
+
+private fun remoteButtonIcon(button: RemoteButton): ImageVector = when (button) {
+    RemoteButton.GUIDE -> Icons.Outlined.LiveTv
+    RemoteButton.YOUTUBE -> Icons.Outlined.SmartDisplay
+    RemoteButton.SETTINGS -> Icons.Outlined.Settings
+    RemoteButton.PROFILE -> Icons.Outlined.AccountCircle
 }

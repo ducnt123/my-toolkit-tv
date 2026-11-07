@@ -15,9 +15,15 @@ import androidx.core.content.ContextCompat
 import com.tk.toolkit.tv.core.ToolkitAccessibilityService
 import com.tk.toolkit.tv.core.ToolkitApp
 import com.tk.toolkit.tv.launcher.LauncherViewModel
+import com.tk.toolkit.tv.launcher.data.AutoLaunchManager
+import com.tk.toolkit.tv.launcher.data.LocaleHelper
 import com.tk.toolkit.tv.launcher.data.RemoteButtons
 
 class MainActivity : ComponentActivity() {
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocaleHelper.wrapContext(newBase))
+    }
 
     private val launcherViewModel: LauncherViewModel by viewModels()
 
@@ -29,6 +35,15 @@ class MainActivity : ComponentActivity() {
 
     private val packageReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) = launcherViewModel.refresh()
+    }
+
+    private val screenWakeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                Intent.ACTION_SCREEN_OFF -> AutoLaunchManager.onScreenOff()
+                Intent.ACTION_SCREEN_ON -> AutoLaunchManager.onScreenOn(context)
+            }
+        }
     }
 
     private val homeKeyReceiver = object : BroadcastReceiver() {
@@ -69,6 +84,16 @@ class MainActivity : ComponentActivity() {
             IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS),
             ContextCompat.RECEIVER_EXPORTED,
         )
+        ContextCompat.registerReceiver(
+            this,
+            screenWakeReceiver,
+            IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_OFF)
+                addAction(Intent.ACTION_SCREEN_ON)
+            },
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        AutoLaunchManager.checkBootLaunch(this)
         setContent { ToolkitApp() }
     }
 
@@ -93,6 +118,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         unregisterReceiver(packageReceiver)
         unregisterReceiver(homeKeyReceiver)
+        unregisterReceiver(screenWakeReceiver)
         super.onDestroy()
     }
 }

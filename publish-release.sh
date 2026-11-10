@@ -60,16 +60,19 @@ fi
 NAMED_APK="${ROOT_DIR}/app/build/outputs/apk/release/toolkit-launcher-${TAG_NAME}.apk"
 cp "$APK_PATH" "$NAMED_APK"
 
-echo "==> Đang đẩy mã nguồn và tạo GitHub Release ${TAG_NAME}..."
+GITHUB_REPO="ducnt123/my-toolkit-tv"
+
+echo "==> Đang đẩy mã nguồn và tạo GitHub Release ${TAG_NAME} trên ${GITHUB_REPO}..."
 git add "$GRADLE_FILE"
 git commit -m "Release ${TAG_NAME} (build ${NEW_CODE})" || true
 git push origin HEAD
 
-if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-  gh release upload "$TAG_NAME" "$NAMED_APK" --clobber
-  gh release edit "$TAG_NAME" --title "Toolkit Launcher ${TAG_NAME}" --notes "$NOTES"
+if gh release view "$TAG_NAME" --repo "$GITHUB_REPO" >/dev/null 2>&1; then
+  gh release upload "$TAG_NAME" "$NAMED_APK" --repo "$GITHUB_REPO" --clobber
+  gh release edit "$TAG_NAME" --repo "$GITHUB_REPO" --title "Toolkit Launcher ${TAG_NAME}" --notes "$NOTES"
 else
   gh release create "$TAG_NAME" "$NAMED_APK" \
+    --repo "$GITHUB_REPO" \
     --title "Toolkit Launcher ${TAG_NAME}" \
     --notes "$NOTES"
 fi

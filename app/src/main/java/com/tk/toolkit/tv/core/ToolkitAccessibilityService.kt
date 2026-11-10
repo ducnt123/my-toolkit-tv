@@ -56,7 +56,6 @@ class ToolkitAccessibilityService : AccessibilityService() {
                 ContextCompat.RECEIVER_NOT_EXPORTED,
             )
         }
-        AutoLaunchManager.checkBootLaunch(this)
     }
 
     override fun onDestroy() {
@@ -78,45 +77,51 @@ class ToolkitAccessibilityService : AccessibilityService() {
         )
     }
 
-    override fun onKeyEvent(event: KeyEvent): Boolean {
-        if (event.keyCode == KeyEvent.KEYCODE_HOME) {
-            if (!RemoteButtons.shouldOverrideHomeKey(this)) return false
-            if (event.action == KeyEvent.ACTION_UP) {
-                val held = event.eventTime - event.downTime
-                if (held >= LONG_PRESS_MS) performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS) else openToolkit()
+    override fun onKeyEvent(event: KeyEvent?): Boolean {
+        val keyEvent = event ?: return false
+        return runCatching {
+            if (keyEvent.keyCode == KeyEvent.KEYCODE_HOME) {
+                if (!RemoteButtons.shouldOverrideHomeKey(this)) return false
+                if (keyEvent.action == KeyEvent.ACTION_UP) {
+                    val held = keyEvent.eventTime - keyEvent.downTime
+                    if (held >= LONG_PRESS_MS) performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS) else openToolkit()
+                }
+                return true
             }
-            return true
-        }
-        return RemoteButtons.handleKeyEvent(this, event)
+            RemoteButtons.handleKeyEvent(this, keyEvent)
+        }.getOrDefault(false)
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent) {
-        // Catches the stock home showing up some other way (boot, an app exiting to home).
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
-            event.packageName == STOCK_LAUNCHER &&
-            event.className?.toString() == STOCK_HOME_ACTIVITY &&
-            RemoteButtons.shouldOverrideHomeKey(this)
-        ) {
-            openToolkit()
-            return
-        }
-        if (target == null) return
-        val root = rootInActiveWindow ?: return
-        when (step) {
-            Step.PressForceStop -> {
-                val node = root.findByText(FORCE_STOP_LABELS) ?: return
-                val clickable = node.clickableAncestor() ?: return
-                if (!clickable.isEnabled || !node.isEnabled) {
-                    finish(R.string.toast_already_stopped)
-                } else if (clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-                    step = Step.Confirm
-                }
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        val accEvent = event ?: return
+        runCatching {
+            // Catches the stock home showing up some other way (boot, an app exiting to home).
+            if (accEvent.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
+                accEvent.packageName == STOCK_LAUNCHER &&
+                accEvent.className?.toString() == STOCK_HOME_ACTIVITY &&
+                RemoteButtons.shouldOverrideHomeKey(this)
+            ) {
+                openToolkit()
+                return
             }
-            Step.Confirm -> {
-                val node = root.findByText(CONFIRM_LABELS) ?: return
-                val clickable = node.clickableAncestor() ?: return
-                if (clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-                    finish(R.string.toast_force_stopped)
+            if (target == null) return
+            val root = rootInActiveWindow ?: return
+            when (step) {
+                Step.PressForceStop -> {
+                    val node = root.findByText(FORCE_STOP_LABELS) ?: return
+                    val clickable = node.clickableAncestor() ?: return
+                    if (!clickable.isEnabled || !node.isEnabled) {
+                        finish(R.string.toast_already_stopped)
+                    } else if (clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                        step = Step.Confirm
+                    }
+                }
+                Step.Confirm -> {
+                    val node = root.findByText(CONFIRM_LABELS) ?: return
+                    val clickable = node.clickableAncestor() ?: return
+                    if (clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                        finish(R.string.toast_force_stopped)
+                    }
                 }
             }
         }

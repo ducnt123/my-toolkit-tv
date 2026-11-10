@@ -67,14 +67,17 @@ import androidx.compose.material.icons.outlined.Sensors
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SettingsRemote
 import androidx.compose.material.icons.outlined.SmartDisplay
+import androidx.compose.material.icons.outlined.SystemUpdateAlt
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -113,18 +116,23 @@ import com.tk.toolkit.tv.R
 import com.tk.toolkit.tv.core.ToolkitAccessibilityService
 import com.tk.toolkit.tv.launcher.data.AppLanguage
 import com.tk.toolkit.tv.launcher.data.AppThemePalette
+import com.tk.toolkit.tv.launcher.data.AppUpdateManager
 import com.tk.toolkit.tv.launcher.data.AutoLaunchManager
 import com.tk.toolkit.tv.launcher.data.BackupManager
 import com.tk.toolkit.tv.launcher.data.CustomKeyMapping
+import com.tk.toolkit.tv.launcher.data.InstallOutcome
 import com.tk.toolkit.tv.launcher.data.LauncherApp
 import com.tk.toolkit.tv.launcher.data.LocaleHelper
+import com.tk.toolkit.tv.launcher.data.ReleaseInfo
 import com.tk.toolkit.tv.launcher.data.RemoteButton
 import com.tk.toolkit.tv.launcher.data.RemoteButtonConfig
 import com.tk.toolkit.tv.launcher.data.RemoteButtons
 import com.tk.toolkit.tv.launcher.data.TvInputEntry
+import com.tk.toolkit.tv.launcher.data.UpdateCheckResult
 import com.tk.toolkit.tv.launcher.data.WallpaperStore
 import com.tk.toolkit.tv.ui.theme.ToolkitColors
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -145,6 +153,7 @@ private sealed interface CustomizePage {
     data object WatchSources : CustomizePage { override val depth = 1 }
     data object AutoLaunch : CustomizePage { override val depth = 1 }
     data object BackupRestore : CustomizePage { override val depth = 1 }
+    data object AppUpdate : CustomizePage { override val depth = 1 }
     data object RemoteButtonsList : CustomizePage { override val depth = 1 }
     data class RemoteButtonDetail(val button: RemoteButton) : CustomizePage { override val depth = 2 }
     data class CaptureKey(val button: RemoteButton) : CustomizePage { override val depth = 3 }
@@ -209,6 +218,7 @@ fun CustomizeDialog(
             CustomizePage.WatchSources -> CustomizePage.Main
             CustomizePage.AutoLaunch -> CustomizePage.Main
             CustomizePage.BackupRestore -> CustomizePage.Main
+            CustomizePage.AppUpdate -> CustomizePage.Main
             CustomizePage.RemoteButtonsList -> CustomizePage.Main
             is CustomizePage.RemoteButtonDetail -> CustomizePage.RemoteButtonsList
             is CustomizePage.CaptureKey -> CustomizePage.RemoteButtonDetail(current.button)
@@ -297,6 +307,7 @@ fun CustomizeDialog(
                                     onOpenAutoLaunch = { page = CustomizePage.AutoLaunch },
                                     onOpenRemoteButtons = { page = CustomizePage.RemoteButtonsList },
                                     onOpenBackupRestore = { page = CustomizePage.BackupRestore },
+                                    onOpenAppUpdate = { page = CustomizePage.AppUpdate },
                                     onRefresh = onRefresh,
                                 )
                             }
@@ -393,6 +404,11 @@ fun CustomizeDialog(
                             CustomizePage.BackupRestore -> {
                                 BackupRestorePanel(
                                     onRestoreCompleted = onRestoreCompleted,
+                                    onBack = ::navigateBack,
+                                )
+                            }
+                            CustomizePage.AppUpdate -> {
+                                AppUpdatePanel(
                                     onBack = ::navigateBack,
                                 )
                             }
@@ -520,6 +536,7 @@ private fun MainCustomizePanel(
     onOpenAutoLaunch: () -> Unit,
     onOpenRemoteButtons: () -> Unit,
     onOpenBackupRestore: () -> Unit,
+    onOpenAppUpdate: () -> Unit,
     onRefresh: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -710,6 +727,16 @@ private fun MainCustomizePanel(
                     showChevron = true,
                 )
             }
+            item(key = "app_update") {
+                val versionName = remember(context) { AppUpdateManager.currentVersionName(context) }
+                TvSettingsItem(
+                    icon = Icons.Outlined.SystemUpdateAlt,
+                    title = stringResource(R.string.update_title),
+                    subtitle = stringResource(R.string.update_subtitle, versionName),
+                    onClick = onOpenAppUpdate,
+                    showChevron = true,
+                )
+            }
             item(key = "refresh") {
                 TvSettingsItem(
                     icon = Icons.Outlined.Refresh,
@@ -720,6 +747,221 @@ private fun MainCustomizePanel(
                         Toast.makeText(context, context.getString(R.string.toast_refreshed), Toast.LENGTH_SHORT).show()
                     },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppUpdatePanel(
+    onBack: () -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val firstItem = remember { FocusRequester() }
+
+    val currentVer = remember(context) { AppUpdateManager.currentVersionName(context) }
+    val currentCode = remember(context) { AppUpdateManager.currentVersionCode(context) }
+
+    var checking by remember { mutableStateOf(true) }
+    var checkResult by remember { mutableStateOf<UpdateCheckResult?>(null) }
+    var downloading by remember { mutableStateOf(false) }
+    var downloadPercent by remember { mutableIntStateOf(-1) }
+    var downloadedApk by remember { mutableStateOf<File?>(null) }
+    var downloadError by remember { mutableStateOf<String?>(null) }
+
+    fun runUpdateCheck() {
+        if (downloading) return
+        checking = true
+        downloadError = null
+        scope.launch {
+            checkResult = AppUpdateManager.checkForUpdate(context)
+            checking = false
+        }
+    }
+
+    fun triggerInstall(file: File) {
+        when (AppUpdateManager.installApk(context, file)) {
+            InstallOutcome.LAUNCHED -> Unit
+            InstallOutcome.NEEDS_UNKNOWN_SOURCES_PERMISSION -> {
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.toast_update_allow_unknown_sources),
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+            InstallOutcome.FAILED -> {
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.toast_update_installer_failed),
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+    }
+
+    fun startDownloadAndInstall(release: ReleaseInfo) {
+        if (downloading) return
+        downloading = true
+        downloadPercent = 0
+        downloadError = null
+        scope.launch {
+            val res = AppUpdateManager.downloadReleaseApk(context, release) { percent, _, _ ->
+                downloadPercent = percent
+            }
+            downloading = false
+            res.onSuccess { file ->
+                downloadedApk = file
+                triggerInstall(file)
+            }.onFailure { err ->
+                downloadError = err.localizedMessage ?: err.javaClass.simpleName
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        firstItem.requestFocusWhenReady()
+        checkResult = AppUpdateManager.checkForUpdate(context)
+        checking = false
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.customize_title),
+            title = stringResource(R.string.update_title),
+            subtitle = stringResource(
+                R.string.update_panel_subtitle,
+                "${AppUpdateManager.GITHUB_OWNER}/${AppUpdateManager.GITHUB_REPO}",
+            ),
+        )
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            item(key = "status_box") {
+                val statusText = when {
+                    downloading -> {
+                        if (downloadPercent >= 0) {
+                            stringResource(R.string.update_downloading, downloadPercent)
+                        } else {
+                            stringResource(R.string.update_downloading_indeterminate)
+                        }
+                    }
+                    checking -> stringResource(R.string.update_checking)
+                    downloadError != null -> stringResource(R.string.update_download_failed, downloadError.orEmpty())
+                    else -> when (val res = checkResult) {
+                        is UpdateCheckResult.UpToDate -> stringResource(R.string.update_up_to_date, res.currentVersion)
+                        is UpdateCheckResult.NoReleasePublished -> stringResource(R.string.update_no_release_published, res.currentVersion)
+                        is UpdateCheckResult.UpdateAvailable -> stringResource(R.string.update_available_title, res.release.versionName)
+                        is UpdateCheckResult.Error -> stringResource(R.string.update_error_prefix, res.message)
+                        null -> stringResource(R.string.update_checking)
+                    }
+                }
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                        .clip(ItemShape)
+                        .background(ToolkitColors.OnSurface.copy(alpha = 0.05f))
+                        .border(1.dp, Color.White.copy(alpha = 0.08f), ItemShape)
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        stringResource(R.string.update_current_version_label, currentVer, currentCode),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = ToolkitColors.OnSurfaceMuted,
+                    )
+                    Text(
+                        statusText,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (checkResult is UpdateCheckResult.UpdateAvailable) ToolkitColors.Accent else ToolkitColors.OnSurface,
+                    )
+                    if (downloading && downloadPercent in 0..100) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(ToolkitColors.OnSurface.copy(alpha = 0.12f)),
+                        ) {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth(fraction = (downloadPercent / 100f).coerceIn(0.02f, 1f))
+                                    .fillMaxHeight()
+                                    .background(ToolkitColors.Accent, RoundedCornerShape(3.dp)),
+                            )
+                        }
+                    }
+                }
+            }
+
+            val availableRelease = (checkResult as? UpdateCheckResult.UpdateAvailable)?.release
+            if (availableRelease != null) {
+                val readyFile = downloadedApk?.takeIf { it.exists() }
+                item(key = "install_action") {
+                    val sizeText = AppUpdateManager.formatSizeMb(availableRelease.apkSizeBytes)
+                        .let { if (it.isNotBlank()) " · $it" else "" }
+                    TvSettingsItem(
+                        icon = Icons.Outlined.SystemUpdateAlt,
+                        title = if (readyFile != null && !downloading) {
+                            stringResource(R.string.update_ready_to_install, availableRelease.versionName)
+                        } else {
+                            stringResource(R.string.update_download_and_install, availableRelease.versionName)
+                        },
+                        subtitle = if (readyFile != null && !downloading) {
+                            stringResource(R.string.update_ready_subtitle)
+                        } else {
+                            stringResource(R.string.update_download_subtitle, availableRelease.apkName, sizeText)
+                        },
+                        onClick = {
+                            if (readyFile != null && !downloading) {
+                                triggerInstall(readyFile)
+                            } else {
+                                startDownloadAndInstall(availableRelease)
+                            }
+                        },
+                        modifier = Modifier.focusRequester(firstItem),
+                        showChevron = true,
+                    )
+                }
+            }
+
+            item(key = "check_again") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.Refresh,
+                    title = stringResource(R.string.update_check_now),
+                    subtitle = stringResource(R.string.update_check_now_subtitle),
+                    onClick = ::runUpdateCheck,
+                    modifier = if (availableRelease == null) Modifier.focusRequester(firstItem) else Modifier,
+                )
+            }
+
+            if (availableRelease != null && availableRelease.changelog.isNotBlank()) {
+                item(key = "changelog") {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 6.dp, vertical = 6.dp)
+                            .clip(ItemShape)
+                            .background(ToolkitColors.OnSurface.copy(alpha = 0.04f))
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            stringResource(R.string.update_changelog_header),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = ToolkitColors.Accent,
+                        )
+                        Text(
+                            availableRelease.changelog,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = ToolkitColors.OnSurfaceMuted,
+                        )
+                    }
+                }
             }
         }
     }

@@ -26,6 +26,7 @@ captures/
 # Signing keys and service credentials
 *.jks
 *.keystore
+!app/keystore/toolkit-signing.keystore
 google-services.json
 
 # Logs and profiling

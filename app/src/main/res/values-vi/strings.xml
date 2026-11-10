@@ -214,5 +214,26 @@
     <string name="toast_cannot_open_assigned_app">Không mở được ứng dụng đã gán cho %1$s</string>
     <string name="toast_youtube_not_found">Không tìm thấy YouTube. Hãy chọn ứng dụng trong Tùy chỉnh › Gán phím điều khiển</string>
     <string name="toast_guide_not_configured">Hãy gán ứng dụng cho Phím Guide trong Tùy chỉnh › Gán phím điều khiển</string>
+    <string name="update_title">Cập nhật ứng dụng</string>
+    <string name="update_subtitle">Phiên bản hiện tại: v%1$s · Kiểm tra &amp; cài đặt từ GitHub</string>
+    <string name="update_panel_subtitle">Kiểm tra bản phát hành APK mới nhất trên GitHub (%1$s)</string>
+    <string name="update_current_version_label">Phiên bản đang cài: v%1$s (build %2$d)</string>
+    <string name="update_check_now">Kiểm tra cập nhật</string>
+    <string name="update_check_now_subtitle">Kết nối tới GitHub Releases để kiểm tra phiên bản mới</string>
+    <string name="update_checking">Đang kiểm tra bản cập nhật từ GitHub…</string>
+    <string name="update_up_to_date">Bạn đang sử dụng phiên bản mới nhất (v%1$s)</string>
+    <string name="update_no_release_published">Chưa có bản phát hành nào trên GitHub (Đang cài: v%1$s)</string>
+    <string name="update_available_title">Có phiên bản mới: v%1$s</string>
+    <string name="update_download_and_install">Tải và cài đặt bản cập nhật (v%1$s)</string>
+    <string name="update_download_subtitle">Tệp: %1$s%2$s</string>
+    <string name="update_downloading">Đang tải bản cập nhật: %1$d%%</string>
+    <string name="update_downloading_indeterminate">Đang tải bản cập nhật…</string>
+    <string name="update_ready_to_install">Đã tải xong — Cài đặt ngay (v%1$s)</string>
+    <string name="update_ready_subtitle">Nhấn OK để mở trình cài đặt gói của Android TV</string>
+    <string name="update_changelog_header">Nội dung cập nhật:</string>
+    <string name="update_error_prefix">Không thể kiểm tra cập nhật: %1$s</string>
+    <string name="update_download_failed">Tải bản cập nhật thất bại: %1$s</string>
+    <string name="toast_update_allow_unknown_sources">Vui lòng bật \"Cài đặt ứng dụng không xác định\" cho Toolkit Launcher rồi bấm Cài đặt lại</string>
+    <string name="toast_update_installer_failed">Không mở được trình cài đặt hệ thống</string>
 </resources>
 

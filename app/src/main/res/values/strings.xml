@@ -214,4 +214,25 @@
     <string name="toast_cannot_open_assigned_app">Couldn\'t open the app assigned to %1$s</string>
     <string name="toast_youtube_not_found">YouTube not found. Please select an app in Customize › Remote button remapping</string>
     <string name="toast_guide_not_configured">Please assign an app for the Guide button in Customize › Remote button remapping</string>
+    <string name="update_title">App update</string>
+    <string name="update_subtitle">Current version: v%1$s · Check &amp; install from GitHub</string>
+    <string name="update_panel_subtitle">Check for the latest APK release on GitHub (%1$s)</string>
+    <string name="update_current_version_label">Installed version: v%1$s (build %2$d)</string>
+    <string name="update_check_now">Check for updates</string>
+    <string name="update_check_now_subtitle">Connect to GitHub Releases to check for a newer version</string>
+    <string name="update_checking">Checking for updates from GitHub…</string>
+    <string name="update_up_to_date">You are using the latest version (v%1$s)</string>
+    <string name="update_no_release_published">No release published on GitHub yet (Installed: v%1$s)</string>
+    <string name="update_available_title">New version available: v%1$s</string>
+    <string name="update_download_and_install">Download &amp; install update (v%1$s)</string>
+    <string name="update_download_subtitle">File: %1$s%2$s</string>
+    <string name="update_downloading">Downloading update: %1$d%%</string>
+    <string name="update_downloading_indeterminate">Downloading update…</string>
+    <string name="update_ready_to_install">Update downloaded — Install now (v%1$s)</string>
+    <string name="update_ready_subtitle">Press OK to open the Android TV package installer</string>
+    <string name="update_changelog_header">Release notes:</string>
+    <string name="update_error_prefix">Update check failed: %1$s</string>
+    <string name="update_download_failed">Download failed: %1$s</string>
+    <string name="toast_update_allow_unknown_sources">Please allow \"Install unknown apps\" for Toolkit Launcher, then press Install again</string>
+    <string name="toast_update_installer_failed">Could not launch package installer</string>
 </resources>

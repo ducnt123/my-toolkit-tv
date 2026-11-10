@@ -18,13 +18,29 @@ android {
 
     }
 
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("keystore/toolkit-signing.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+        create("release") {
+            storeFile = file("keystore/toolkit-signing.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             optimization {
                 enable = true
             }
-            // Personal sideloaded app: sign with the debug key so it installs over debug builds.
-            signingConfig = signingConfigs.getByName("debug")
+            // Dedicated project-pinned keystore so updates always install cleanly over existing builds
+            // across any machine or CI environment.
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {

@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
@@ -67,6 +69,7 @@ fun CustomizeTile(
     focusRequester: FocusRequester,
     onFocused: () -> Unit,
     onClick: () -> Unit,
+    badgeText: String? = null,
     modifier: Modifier = Modifier,
 ) {
     UtilityTile(
@@ -76,6 +79,7 @@ fun CustomizeTile(
         focusRequester = focusRequester,
         onFocused = onFocused,
         onClick = onClick,
+        badgeText = badgeText,
         modifier = modifier,
     )
 }
@@ -88,6 +92,7 @@ private fun UtilityTile(
     focusRequester: FocusRequester,
     onFocused: () -> Unit,
     onClick: () -> Unit,
+    badgeText: String? = null,
     modifier: Modifier = Modifier,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -136,6 +141,23 @@ private fun UtilityTile(
                         style = MaterialTheme.typography.bodyMedium,
                         color = ToolkitColors.OnSurface,
                     )
+                }
+
+                if (!badgeText.isNullOrBlank()) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 8.dp, end = 8.dp)
+                            .background(ToolkitColors.Accent, CircleShape)
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            text = badgeText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = ToolkitColors.Background,
+                        )
+                    }
                 }
             }
         }

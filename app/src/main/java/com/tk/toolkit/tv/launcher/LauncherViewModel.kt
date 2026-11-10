@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.tk.toolkit.tv.launcher.data.AppLanguage
 import com.tk.toolkit.tv.launcher.data.AppRepository
 import com.tk.toolkit.tv.launcher.data.AppThemePalette
+import com.tk.toolkit.tv.launcher.data.AppUpdateManager
 import com.tk.toolkit.tv.launcher.data.ContinueWatching
 import com.tk.toolkit.tv.launcher.data.CustomKeyMapping
 import com.tk.toolkit.tv.launcher.data.LauncherApp
@@ -17,6 +18,8 @@ import com.tk.toolkit.tv.launcher.data.LocaleHelper
 import com.tk.toolkit.tv.launcher.data.RemoteButton
 import com.tk.toolkit.tv.launcher.data.RemoteButtonConfig
 import com.tk.toolkit.tv.launcher.data.RemoteButtons
+import com.tk.toolkit.tv.launcher.data.UpdateCheckInterval
+import com.tk.toolkit.tv.launcher.data.UpdateCheckResult
 import com.tk.toolkit.tv.launcher.data.WallpaperStore
 import com.tk.toolkit.tv.launcher.data.WatchItem
 import com.tk.toolkit.tv.launcher.data.WatchNextRepository
@@ -68,6 +71,10 @@ data class LauncherState(
     val autoLaunchOnBoot: Boolean = true,
     /** Whether auto-launch runs when waking from sleep/standby. */
     val autoLaunchOnWake: Boolean = true,
+    /** Frequency for automatic GitHub update checks. */
+    val updateCheckInterval: UpdateCheckInterval = UpdateCheckInterval.DEFAULT,
+    /** Non-empty when a newer version has been found on GitHub Releases (e.g. "1.2"). */
+    val availableUpdateVersion: String = "",
     val loaded: Boolean = false,
     /** App package or Continue Watching key currently being repositioned, if any. */
     val movingKey: String? = null,
@@ -96,6 +103,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             autoLaunchTarget = prefs.autoLaunchTarget(),
             autoLaunchOnBoot = prefs.isAutoLaunchOnBootEnabled(),
             autoLaunchOnWake = prefs.isAutoLaunchOnWakeEnabled(),
+            updateCheckInterval = prefs.updateCheckInterval(),
+            availableUpdateVersion = prefs.availableUpdateVersion(),
         ),
     )
     val state: StateFlow<LauncherState> = _state.asStateFlow()
@@ -106,6 +115,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     init {
         ToolkitColors.currentPalette = prefs.themePalette()
+        viewModelScope.launch(Dispatchers.IO) {
+            AppUpdateManager.cleanupInstalledApks(getApplication())
+            _state.update { it.copy(availableUpdateVersion = prefs.availableUpdateVersion()) }
+            maybeAutoCheckUpdate()
+        }
         refresh()
     }
 
@@ -133,6 +147,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val autoTarget = prefs.autoLaunchTarget()
             val autoBoot = prefs.isAutoLaunchOnBootEnabled()
             val autoWake = prefs.isAutoLaunchOnWakeEnabled()
+            val updateInterval = prefs.updateCheckInterval()
+            val availableUpdate = prefs.availableUpdateVersion()
             ToolkitColors.currentPalette = palette
 
             _state.update { current ->
@@ -156,6 +172,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     autoLaunchTarget = autoTarget,
                     autoLaunchOnBoot = autoBoot,
                     autoLaunchOnWake = autoWake,
+                    updateCheckInterval = updateInterval,
+                    availableUpdateVersion = availableUpdate,
                     homeRequestCount = current.homeRequestCount,
                 )
             }
@@ -309,6 +327,36 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _state.update { it.copy(autoLaunchOnWake = enabled) }
     }
 
+    fun setUpdateCheckInterval(interval: UpdateCheckInterval) {
+        prefs.setUpdateCheckInterval(interval)
+        _state.update { it.copy(updateCheckInterval = interval) }
+        if (interval != UpdateCheckInterval.OFF) {
+            viewModelScope.launch(Dispatchers.IO) {
+                maybeAutoCheckUpdate()
+            }
+        }
+    }
+
+    fun onUpdateCheckResult(result: UpdateCheckResult) {
+        val avail = when (result) {
+            is UpdateCheckResult.UpdateAvailable -> result.release.versionName
+            is UpdateCheckResult.UpToDate, is UpdateCheckResult.NoReleasePublished -> ""
+            is UpdateCheckResult.Error -> prefs.availableUpdateVersion()
+        }
+        _state.update { it.copy(availableUpdateVersion = avail) }
+    }
+
+    private suspend fun maybeAutoCheckUpdate() {
+        val interval = prefs.updateCheckInterval()
+        if (interval == UpdateCheckInterval.OFF) return
+        val lastCheck = prefs.lastUpdateCheckTimeMs()
+        val now = System.currentTimeMillis()
+        if (lastCheck <= 0L || now - lastCheck >= interval.intervalMs) {
+            val result = AppUpdateManager.checkForUpdate(getApplication())
+            onUpdateCheckResult(result)
+        }
+    }
+
     fun reloadAfterRestore() {
         LocaleHelper.wrapContext(getApplication(), prefs.language())
         ToolkitColors.currentPalette = prefs.themePalette()
@@ -413,6 +461,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 autoLaunchTarget = current.autoLaunchTarget,
                 autoLaunchOnBoot = current.autoLaunchOnBoot,
                 autoLaunchOnWake = current.autoLaunchOnWake,
+                updateCheckInterval = current.updateCheckInterval,
+                availableUpdateVersion = current.availableUpdateVersion,
                 homeRequestCount = current.homeRequestCount,
             )
         }

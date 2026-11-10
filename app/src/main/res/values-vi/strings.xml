@@ -235,5 +235,12 @@
     <string name="update_download_failed">Tải bản cập nhật thất bại: %1$s</string>
     <string name="toast_update_allow_unknown_sources">Vui lòng bật \"Cài đặt ứng dụng không xác định\" cho Toolkit Launcher rồi bấm Cài đặt lại</string>
     <string name="toast_update_installer_failed">Không mở được trình cài đặt hệ thống</string>
+    <string name="update_badge_new">MỚI</string>
+    <string name="update_subtitle_available">Có bản cập nhật mới v%1$s · Bấm để cài đặt</string>
+    <string name="update_auto_check_title">Tự động kiểm tra cập nhật</string>
+    <string name="update_interval_off">Tắt</string>
+    <string name="update_interval_daily">Hàng ngày</string>
+    <string name="update_interval_weekly">Hàng tuần</string>
+    <string name="update_interval_monthly">Hàng tháng</string>
 </resources>
 

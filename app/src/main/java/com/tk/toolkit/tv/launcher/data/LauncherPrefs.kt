@@ -115,6 +115,26 @@ class LauncherPrefs(context: Context) {
         prefs.edit { putBoolean(KEY_AUTO_LAUNCH_WAKE, enabled) }
     }
 
+    fun updateCheckInterval(): UpdateCheckInterval =
+        UpdateCheckInterval.fromId(prefs.getString(KEY_UPDATE_CHECK_INTERVAL, UpdateCheckInterval.DEFAULT.id))
+
+    fun setUpdateCheckInterval(interval: UpdateCheckInterval) {
+        prefs.edit { putString(KEY_UPDATE_CHECK_INTERVAL, interval.id) }
+    }
+
+    fun lastUpdateCheckTimeMs(): Long = prefs.getLong(KEY_LAST_UPDATE_CHECK_MS, 0L)
+
+    fun setLastUpdateCheckTimeMs(timeMs: Long) {
+        prefs.edit { putLong(KEY_LAST_UPDATE_CHECK_MS, timeMs) }
+    }
+
+    fun availableUpdateVersion(): String =
+        prefs.getString(KEY_AVAILABLE_UPDATE_VERSION, null).orEmpty()
+
+    fun setAvailableUpdateVersion(version: String) {
+        prefs.edit { putString(KEY_AVAILABLE_UPDATE_VERSION, version) }
+    }
+
     fun isOverrideHomeKeyEnabled(defaultValue: Boolean = false): Boolean =
         prefs.getBoolean(KEY_OVERRIDE_HOME, defaultValue)
 
@@ -268,6 +288,7 @@ class LauncherPrefs(context: Context) {
         root.put(KEY_AUTO_LAUNCH_TARGET, autoLaunchTarget())
         root.put(KEY_AUTO_LAUNCH_BOOT, isAutoLaunchOnBootEnabled())
         root.put(KEY_AUTO_LAUNCH_WAKE, isAutoLaunchOnWakeEnabled())
+        root.put(KEY_UPDATE_CHECK_INTERVAL, updateCheckInterval().id)
         if (hasOverrideHomeKeyPref()) {
             root.put(KEY_OVERRIDE_HOME, isOverrideHomeKeyEnabled())
         }
@@ -320,6 +341,9 @@ class LauncherPrefs(context: Context) {
             if (root.has(KEY_AUTO_LAUNCH_TARGET)) putString(KEY_AUTO_LAUNCH_TARGET, root.optString(KEY_AUTO_LAUNCH_TARGET, ""))
             if (root.has(KEY_AUTO_LAUNCH_BOOT)) putBoolean(KEY_AUTO_LAUNCH_BOOT, root.optBoolean(KEY_AUTO_LAUNCH_BOOT, true))
             if (root.has(KEY_AUTO_LAUNCH_WAKE)) putBoolean(KEY_AUTO_LAUNCH_WAKE, root.optBoolean(KEY_AUTO_LAUNCH_WAKE, true))
+            if (root.has(KEY_UPDATE_CHECK_INTERVAL)) {
+                putString(KEY_UPDATE_CHECK_INTERVAL, UpdateCheckInterval.fromId(root.optString(KEY_UPDATE_CHECK_INTERVAL)).id)
+            }
             if (root.has(KEY_OVERRIDE_HOME)) putBoolean(KEY_OVERRIDE_HOME, root.optBoolean(KEY_OVERRIDE_HOME, false))
 
             val remoteObj = root.optJSONObject("remote_buttons")
@@ -357,6 +381,9 @@ class LauncherPrefs(context: Context) {
         const val KEY_AUTO_LAUNCH_TARGET = "auto_launch_target"
         const val KEY_AUTO_LAUNCH_BOOT = "auto_launch_boot"
         const val KEY_AUTO_LAUNCH_WAKE = "auto_launch_wake"
+        const val KEY_UPDATE_CHECK_INTERVAL = "update_check_interval"
+        const val KEY_LAST_UPDATE_CHECK_MS = "last_update_check_ms"
+        const val KEY_AVAILABLE_UPDATE_VERSION = "available_update_version"
         const val KEY_OVERRIDE_HOME = "override_home"
         const val KEY_REMOTE_TARGET_PREFIX = "remote_target_"
         const val KEY_REMOTE_KEYCODE_PREFIX = "remote_keycode_"

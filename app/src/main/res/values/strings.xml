@@ -235,4 +235,11 @@
     <string name="update_download_failed">Download failed: %1$s</string>
     <string name="toast_update_allow_unknown_sources">Please allow \"Install unknown apps\" for Toolkit Launcher, then press Install again</string>
     <string name="toast_update_installer_failed">Could not launch package installer</string>
+    <string name="update_badge_new">NEW</string>
+    <string name="update_subtitle_available">New update v%1$s available · Tap to install</string>
+    <string name="update_auto_check_title">Auto-check for updates</string>
+    <string name="update_interval_off">Off</string>
+    <string name="update_interval_daily">Daily</string>
+    <string name="update_interval_weekly">Weekly</string>
+    <string name="update_interval_monthly">Monthly</string>
 </resources>

@@ -128,6 +128,7 @@ import com.tk.toolkit.tv.launcher.data.RemoteButton
 import com.tk.toolkit.tv.launcher.data.RemoteButtonConfig
 import com.tk.toolkit.tv.launcher.data.RemoteButtons
 import com.tk.toolkit.tv.launcher.data.TvInputEntry
+import com.tk.toolkit.tv.launcher.data.UpdateCheckInterval
 import com.tk.toolkit.tv.launcher.data.UpdateCheckResult
 import com.tk.toolkit.tv.launcher.data.WallpaperStore
 import com.tk.toolkit.tv.ui.theme.ToolkitColors
@@ -173,6 +174,8 @@ fun CustomizeDialog(
     autoLaunchTarget: String,
     autoLaunchOnBoot: Boolean,
     autoLaunchOnWake: Boolean,
+    updateCheckInterval: UpdateCheckInterval,
+    availableUpdateVersion: String,
     tvInputs: List<TvInputEntry>,
     apps: List<LauncherApp>,
     disabledWatchPackages: Set<String>,
@@ -193,6 +196,8 @@ fun CustomizeDialog(
     onSetAutoLaunchTarget: (String) -> Unit,
     onSetAutoLaunchOnBoot: (Boolean) -> Unit,
     onSetAutoLaunchOnWake: (Boolean) -> Unit,
+    onSetUpdateCheckInterval: (UpdateCheckInterval) -> Unit,
+    onUpdateCheckResult: (UpdateCheckResult) -> Unit,
     onRestoreCompleted: () -> Unit,
     onToggleWatchPackage: (String, Boolean) -> Unit,
     onSetRemoteButtonTarget: (RemoteButton, String) -> Unit,
@@ -293,6 +298,7 @@ fun CustomizeDialog(
                                     language = language,
                                     themePalette = themePalette,
                                     autoLaunchTarget = autoLaunchTarget,
+                                    availableUpdateVersion = availableUpdateVersion,
                                     apps = apps,
                                     tvInputs = tvInputs,
                                     enabledCount = apps.count { it.packageName !in disabledWatchPackages },
@@ -409,6 +415,9 @@ fun CustomizeDialog(
                             }
                             CustomizePage.AppUpdate -> {
                                 AppUpdatePanel(
+                                    updateCheckInterval = updateCheckInterval,
+                                    onSetUpdateCheckInterval = onSetUpdateCheckInterval,
+                                    onUpdateCheckResult = onUpdateCheckResult,
                                     onBack = ::navigateBack,
                                 )
                             }
@@ -522,6 +531,7 @@ private fun MainCustomizePanel(
     language: AppLanguage,
     themePalette: AppThemePalette,
     autoLaunchTarget: String,
+    availableUpdateVersion: String,
     apps: List<LauncherApp>,
     tvInputs: List<TvInputEntry>,
     enabledCount: Int,
@@ -729,12 +739,43 @@ private fun MainCustomizePanel(
             }
             item(key = "app_update") {
                 val versionName = remember(context) { AppUpdateManager.currentVersionName(context) }
+                val hasUpdate = availableUpdateVersion.isNotBlank()
                 TvSettingsItem(
                     icon = Icons.Outlined.SystemUpdateAlt,
                     title = stringResource(R.string.update_title),
-                    subtitle = stringResource(R.string.update_subtitle, versionName),
+                    subtitle = if (hasUpdate) {
+                        stringResource(R.string.update_subtitle_available, availableUpdateVersion)
+                    } else {
+                        stringResource(R.string.update_subtitle, versionName)
+                    },
                     onClick = onOpenAppUpdate,
-                    showChevron = true,
+                    showChevron = !hasUpdate,
+                    trailingContent = if (hasUpdate) {
+                        {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .background(ToolkitColors.Accent, CircleShape)
+                                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.update_badge_new),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = ToolkitColors.Background,
+                                    )
+                                }
+                                Icon(
+                                    Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+                        }
+                    } else null,
                 )
             }
             item(key = "refresh") {
@@ -754,6 +795,9 @@ private fun MainCustomizePanel(
 
 @Composable
 private fun AppUpdatePanel(
+    updateCheckInterval: UpdateCheckInterval,
+    onSetUpdateCheckInterval: (UpdateCheckInterval) -> Unit,
+    onUpdateCheckResult: (UpdateCheckResult) -> Unit,
     onBack: () -> Unit,
 ) {
     BackHandler(onBack = onBack)
@@ -776,7 +820,9 @@ private fun AppUpdatePanel(
         checking = true
         downloadError = null
         scope.launch {
-            checkResult = AppUpdateManager.checkForUpdate(context)
+            val res = AppUpdateManager.checkForUpdate(context)
+            checkResult = res
+            onUpdateCheckResult(res)
             checking = false
         }
     }
@@ -822,7 +868,9 @@ private fun AppUpdatePanel(
 
     LaunchedEffect(Unit) {
         firstItem.requestFocusWhenReady()
-        checkResult = AppUpdateManager.checkForUpdate(context)
+        val res = AppUpdateManager.checkForUpdate(context)
+        checkResult = res
+        onUpdateCheckResult(res)
         checking = false
     }
 
@@ -936,6 +984,51 @@ private fun AppUpdatePanel(
                     subtitle = stringResource(R.string.update_check_now_subtitle),
                     onClick = ::runUpdateCheck,
                     modifier = if (availableRelease == null) Modifier.focusRequester(firstItem) else Modifier,
+                )
+            }
+
+            item(key = "auto_check_interval") {
+                val intervals = UpdateCheckInterval.entries
+                TvSettingsItem(
+                    icon = Icons.Outlined.AutoAwesome,
+                    title = stringResource(R.string.update_auto_check_title),
+                    subtitle = stringResource(updateCheckInterval.titleRes),
+                    onClick = {
+                        val idx = intervals.indexOf(updateCheckInterval).coerceAtLeast(0)
+                        val next = intervals[(idx + 1) % intervals.size]
+                        onSetUpdateCheckInterval(next)
+                    },
+                    modifier = Modifier.onPreviewKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        val idx = intervals.indexOf(updateCheckInterval).coerceAtLeast(0)
+                        when (event.nativeKeyEvent.keyCode) {
+                            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                                val prev = intervals[(idx - 1 + intervals.size) % intervals.size]
+                                onSetUpdateCheckInterval(prev)
+                                true
+                            }
+                            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                val next = intervals[(idx + 1) % intervals.size]
+                                onSetUpdateCheckInterval(next)
+                                true
+                            }
+                            else -> false
+                        }
+                    },
+                    trailingContent = {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .background(ToolkitColors.Accent, RoundedCornerShape(6.dp))
+                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                        ) {
+                            Text(
+                                text = stringResource(updateCheckInterval.titleRes),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = ToolkitColors.Background,
+                            )
+                        }
+                    },
                 )
             }
 

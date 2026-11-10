@@ -430,6 +430,9 @@ private fun HomeScreenContent(
                                     ToolkitColors.focusedAmbientColor = ToolkitColors.GlowA
                                 },
                                 onClick = { if (state.movingKey == null) showCustomize = true },
+                                badgeText = state.availableUpdateVersion.takeIf { it.isNotBlank() }?.let {
+                                    stringResource(R.string.update_badge_new)
+                                },
                             )
                         }
                     }
@@ -493,6 +496,8 @@ private fun HomeScreenContent(
             autoLaunchTarget = state.autoLaunchTarget,
             autoLaunchOnBoot = state.autoLaunchOnBoot,
             autoLaunchOnWake = state.autoLaunchOnWake,
+            updateCheckInterval = state.updateCheckInterval,
+            availableUpdateVersion = state.availableUpdateVersion,
             tvInputs = tvInputs,
             apps = state.apps + state.hiddenApps,
             disabledWatchPackages = state.disabledWatchPackages,
@@ -513,6 +518,8 @@ private fun HomeScreenContent(
             onSetAutoLaunchTarget = viewModel::setAutoLaunchTarget,
             onSetAutoLaunchOnBoot = viewModel::setAutoLaunchOnBootEnabled,
             onSetAutoLaunchOnWake = viewModel::setAutoLaunchOnWakeEnabled,
+            onSetUpdateCheckInterval = viewModel::setUpdateCheckInterval,
+            onUpdateCheckResult = viewModel::onUpdateCheckResult,
             onRestoreCompleted = viewModel::reloadAfterRestore,
             onToggleWatchPackage = viewModel::setWatchPackageEnabled,
             onSetRemoteButtonTarget = viewModel::setRemoteButtonTarget,

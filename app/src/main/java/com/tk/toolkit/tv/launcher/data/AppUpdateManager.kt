@@ -5,7 +5,9 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.annotation.StringRes
 import androidx.core.content.FileProvider
+import com.tk.toolkit.tv.R
 import com.tk.toolkit.tv.launcher.data.AppActions.safeStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -17,6 +19,25 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 import kotlin.coroutines.coroutineContext
+
+enum class UpdateCheckInterval(
+    val id: String,
+    val intervalMs: Long,
+    @StringRes val titleRes: Int,
+) {
+    OFF("off", 0L, R.string.update_interval_off),
+    DAILY("daily", 24L * 60L * 60L * 1000L, R.string.update_interval_daily),
+    WEEKLY("weekly", 7L * 24L * 60L * 60L * 1000L, R.string.update_interval_weekly),
+    MONTHLY("monthly", 30L * 24L * 60L * 60L * 1000L, R.string.update_interval_monthly),
+    ;
+
+    companion object {
+        val DEFAULT = DAILY
+
+        fun fromId(id: String?): UpdateCheckInterval =
+            entries.firstOrNull { it.id.equals(id, ignoreCase = true) } ?: DEFAULT
+    }
+}
 
 data class ReleaseInfo(
     val tagName: String,
@@ -46,6 +67,7 @@ object AppUpdateManager {
     const val GITHUB_REPO = "my-toolkit-tv"
     private const val LATEST_RELEASE_API =
         "https://api.github.com/repos/$GITHUB_OWNER/$GITHUB_REPO/releases/latest"
+    private const val APK_FILE_PREFIX = "toolkit-update-"
 
     fun currentVersionName(context: Context): String = runCatching {
         val pkgInfo = context.packageManager.getPackageInfo(context.packageName, 0)
@@ -62,8 +84,45 @@ object AppUpdateManager {
         }
     }.getOrDefault(1L)
 
+    /**
+     * Deletes any downloaded APK files whose version is already installed (<= current version)
+     * and clears stale update badges in [LauncherPrefs].
+     */
+    fun cleanupInstalledApks(context: Context) {
+        val currentNormalized = normalizeVersion(currentVersionName(context))
+        val prefs = LauncherPrefs(context)
+        val cachedAvailable = prefs.availableUpdateVersion()
+        if (cachedAvailable.isNotBlank() && !isRemoteNewer(normalizeVersion(cachedAvailable), currentNormalized)) {
+            prefs.setAvailableUpdateVersion("")
+        }
+
+        val dirs = listOfNotNull(
+            File(context.cacheDir, "updates"),
+            context.externalCacheDir?.let { File(it, "updates") },
+        )
+        for (dir in dirs) {
+            if (!dir.exists()) continue
+            dir.listFiles()?.forEach { file ->
+                val name = file.name
+                if (name.startsWith(APK_FILE_PREFIX) && name.endsWith(".apk", ignoreCase = true)) {
+                    val fileVer = normalizeVersion(
+                        name.removePrefix(APK_FILE_PREFIX).removeSuffix(".apk").removeSuffix(".APK")
+                    )
+                    if (fileVer.isBlank() || !isRemoteNewer(fileVer, currentNormalized)) {
+                        runCatching { file.delete() }
+                    }
+                } else {
+                    runCatching { file.delete() }
+                }
+            }
+        }
+    }
+
     suspend fun checkForUpdate(context: Context): UpdateCheckResult = withContext(Dispatchers.IO) {
         val currentVer = currentVersionName(context)
+        val prefs = LauncherPrefs(context)
+        cleanupInstalledApks(context)
+
         runCatching {
             val conn = openFollowedConnection(
                 urlStr = LATEST_RELEASE_API,
@@ -72,6 +131,8 @@ object AppUpdateManager {
             try {
                 val code = conn.responseCode
                 if (code == HttpURLConnection.HTTP_NOT_FOUND) {
+                    prefs.setLastUpdateCheckTimeMs(System.currentTimeMillis())
+                    prefs.setAvailableUpdateVersion("")
                     return@withContext UpdateCheckResult.NoReleasePublished(currentVer)
                 }
                 if (code !in 200..299) {
@@ -103,7 +164,10 @@ object AppUpdateManager {
                     }
                 }
 
+                prefs.setLastUpdateCheckTimeMs(System.currentTimeMillis())
+
                 if (tagName.isBlank() || apkUrl.isBlank()) {
+                    prefs.setAvailableUpdateVersion("")
                     return@withContext UpdateCheckResult.NoReleasePublished(currentVer)
                 }
 
@@ -118,8 +182,10 @@ object AppUpdateManager {
                 )
 
                 if (isRemoteNewer(remoteVersion = normalizedRemoteVersion, localVersion = normalizeVersion(currentVer))) {
+                    prefs.setAvailableUpdateVersion(release.versionName)
                     UpdateCheckResult.UpdateAvailable(currentVer, release)
                 } else {
+                    prefs.setAvailableUpdateVersion("")
                     UpdateCheckResult.UpToDate(currentVer)
                 }
             } finally {
@@ -138,7 +204,7 @@ object AppUpdateManager {
         runCatching {
             val updatesDir = File(context.cacheDir, "updates").apply { mkdirs() }
             updatesDir.listFiles()?.forEach { it.delete() }
-            val targetFile = File(updatesDir, "toolkit-update-${release.versionName}.apk")
+            val targetFile = File(updatesDir, "$APK_FILE_PREFIX${release.versionName}.apk")
 
             val conn = openFollowedConnection(
                 urlStr = release.apkUrl,
@@ -278,7 +344,7 @@ object AppUpdateManager {
         error("Too many redirects")
     }
 
-    private fun normalizeVersion(raw: String): String =
+    internal fun normalizeVersion(raw: String): String =
         raw.trim().removePrefix("v").removePrefix("V").trim()
 
     internal fun isRemoteNewer(remoteVersion: String, localVersion: String): Boolean {
@@ -295,4 +361,3 @@ object AppUpdateManager {
         return remoteVersion != localVersion && remoteParts.isEmpty()
     }
 }
-

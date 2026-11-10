@@ -29,8 +29,8 @@ if ! gh auth status >/dev/null 2>&1; then
   gh auth login
 fi
 
-CURRENT_VER="$(grep -E 'versionName\s*=\s*"[^"]+"' "$GRADLE_FILE" | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')"
-CURRENT_CODE="$(grep -E 'versionCode\s*=\s*[0-9]+' "$GRADLE_FILE" | head -n1 | sed -E 's/.*=\s*([0-9]+).*/\1/')"
+CURRENT_VER="$(grep -E 'versionName[[:space:]]*=[[:space:]]*"[^"]+"' "$GRADLE_FILE" | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')"
+CURRENT_CODE="$(grep -E 'versionCode[[:space:]]*=[[:space:]]*[0-9]+' "$GRADLE_FILE" | head -n1 | sed -E 's/[^0-9]*([0-9]+).*/\1/')"
 
 if [ "$CURRENT_VER" = "$NEW_VERSION" ]; then
   NEW_CODE="$CURRENT_CODE"

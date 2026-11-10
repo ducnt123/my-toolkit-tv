@@ -57,10 +57,11 @@ if [ ! -f "$APK_PATH" ]; then
   exit 1
 fi
 
-NAMED_APK="${ROOT_DIR}/app/build/outputs/apk/release/toolkit-launcher-${TAG_NAME}.apk"
+NAMED_APK="${ROOT_DIR}/app/build/outputs/apk/release/toolkit-launcher.apk"
 cp "$APK_PATH" "$NAMED_APK"
 
 GITHUB_REPO="ducnt123/my-toolkit-tv"
+LATEST_DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/toolkit-launcher.apk"
 
 echo "==> Đang đẩy mã nguồn và tạo GitHub Release ${TAG_NAME} trên ${GITHUB_REPO}..."
 git add "$GRADLE_FILE"
@@ -78,3 +79,4 @@ else
 fi
 
 echo "==> Hoàn tất! Người dùng trên TV đã có thể bấm 'Cập nhật ứng dụng' để tải bản ${TAG_NAME}."
+echo "==> Link tải trực tiếp bản mới nhất (cố định): ${LATEST_DOWNLOAD_URL}"

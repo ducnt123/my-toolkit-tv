@@ -10,6 +10,7 @@
     <!-- Common -->
     <string name="common_selected">Đang chọn</string>
     <string name="common_cancel">Hủy</string>
+    <string name="common_back">Quay lại</string>
 
     <!-- Home Screen & Header -->
     <string name="section_continue_watching">Tiếp tục xem</string>
@@ -77,18 +78,18 @@
     <string name="customize_subtitle">Cài đặt màn hình chính và phím tắt điều khiển</string>
     <string name="customize_language">Ngôn ngữ</string>
     <string name="customize_language_panel_subtitle">Chọn ngôn ngữ hiển thị cho trình khởi chạy</string>
-    <string name="customize_app_grid">Lưới ứng dụng</string>
+    <string name="customize_app_grid">Kích thước lưới ứng dụng</string>
     <string name="customize_app_grid_subtitle">Hiển thị %1$d mục trên mỗi hàng</string>
     <string name="customize_show_watch_row">Hiển thị hàng Tiếp tục xem</string>
     <string name="customize_show_watch_row_on">Đang hiện trên màn hình chính</string>
     <string name="customize_show_watch_row_off">Đang ẩn khỏi màn hình chính</string>
-    <string name="customize_watch_sources">Nguồn ứng dụng Tiếp tục xem</string>
+    <string name="customize_watch_sources">Nguồn Tiếp tục xem</string>
     <string name="customize_watch_sources_subtitle">Đang bật %1$d/%2$d ứng dụng</string>
     <string name="customize_watch_sources_panel_subtitle">Bật hoặc tắt hiển thị nội dung từ từng ứng dụng</string>
     <string name="customize_watch_source_disabled">Đã tắt hiển thị</string>
     <string name="customize_watch_source_active">Đang có nội dung trong Tiếp tục xem</string>
     <string name="customize_watch_source_enabled">Cho phép hiển thị</string>
-    <string name="customize_back_to_ambient">Bấm Back bật Bảo vệ màn hình</string>
+    <string name="customize_back_to_ambient">Bấm phím Trở về để bật Bảo vệ màn hình</string>
     <string name="customize_back_to_ambient_on">Mở Ambient Mode khi bấm Back ở mục đầu tiên</string>
     <string name="customize_back_to_ambient_off">Không mở bảo vệ màn hình khi bấm Back</string>
     <string name="customize_remote_buttons">Gán phím điều khiển</string>
@@ -99,7 +100,7 @@
     <string name="toast_refreshed">Đã làm mới nội dung</string>
 
     <!-- Theme & Wallpaper -->
-    <string name="customize_theme_wallpaper">Giao diện &amp; Hình nền</string>
+    <string name="customize_theme_wallpaper">Chủ đề &amp; Hình nền</string>
     <string name="customize_theme_wallpaper_subtitle">Bảng màu chủ đạo, hiệu ứng màu nền động và hình nền tùy chỉnh</string>
     <string name="theme_section_palette">Tông màu chủ đạo</string>
     <string name="theme_ocean_blue">Xanh Dương (Mặc định)</string>
@@ -144,7 +145,7 @@
     <string name="toast_wallpaper_cleared">Đã xóa hình nền tùy chỉnh</string>
 
     <!-- Auto-launch on Boot / Wake -->
-    <string name="customize_auto_launch">Tự động mở khi bật TV</string>
+    <string name="customize_auto_launch">Tự động khởi chạy khi bật TV</string>
     <string name="customize_auto_launch_panel_subtitle">Tự động mở ứng dụng hoặc ngõ vào khi khởi động hay đánh thức TV</string>
     <string name="auto_launch_off">Tắt (Ở lại màn hình chính)</string>
     <string name="auto_launch_off_subtitle">Không tự động mở ứng dụng khi bật TV</string>
@@ -157,7 +158,7 @@
     <string name="auto_launch_input_subtitle">Ngõ vào TV · %1$s</string>
 
     <!-- Backup & Restore -->
-    <string name="customize_backup_restore">Sao lưu &amp; Khôi phục bố cục</string>
+    <string name="customize_backup_restore">Sao lưu &amp; khôi phục các tùy chỉnh</string>
     <string name="customize_backup_restore_subtitle">Xuất/nhập thứ tự ứng dụng, ứng dụng ẩn và cấu hình Tùy chỉnh</string>
     <string name="backup_export_quick">Sao lưu nhanh vào Download</string>
     <string name="backup_export_quick_subtitle">Xuất tệp Download/toolkit_launcher_backup.json</string>
@@ -256,5 +257,23 @@
     <string name="update_interval_daily">Hàng ngày</string>
     <string name="update_interval_weekly">Hàng tuần</string>
     <string name="update_interval_monthly">Hàng tháng</string>
+    <!-- Customize groups -->
+    <string name="group_appearance">Giao diện &amp; Bố cục</string>
+    <string name="group_appearance_subtitle">%1$s · %2$d cột</string>
+    <string name="group_controls">Điều khiển &amp; Hành vi thiết bị</string>
+    <string name="group_controls_subtitle">Tự khởi chạy, gán phím điều khiển, bảo vệ màn hình</string>
+    <string name="group_language">Ngôn ngữ / Language</string>
+    <string name="group_system">Hệ thống &amp; Cập nhật</string>
+    <string name="group_system_subtitle">v%1$s · Cập nhật, sao lưu và khôi phục</string>
+    <string name="system_version_title">Thông tin phiên bản hiện tại</string>
+    <string name="system_version_subtitle">Toolkit Launcher v%1$s (build %2$d)</string>
+    <string name="system_check_update">Kiểm tra bản cập nhật</string>
+    <string name="advanced_title">Cài đặt nâng cao</string>
+    <string name="advanced_subtitle">Tùy chọn dành cho người dùng nâng cao</string>
+    <string name="advanced_empty">Chưa có tùy chọn nào. Các tính năng nâng cao sẽ được bổ sung trong các phiên bản sau.</string>
+    <string name="toast_advanced_shown">Đã hiện Cài đặt nâng cao</string>
+    <string name="toast_advanced_hidden">Đã ẩn Cài đặt nâng cao</string>
+    <string name="toast_advanced_taps_to_show">Bấm thêm %1$d lần để hiện Cài đặt nâng cao</string>
+    <string name="toast_advanced_taps_to_hide">Bấm thêm %1$d lần để ẩn Cài đặt nâng cao</string>
 </resources>
 

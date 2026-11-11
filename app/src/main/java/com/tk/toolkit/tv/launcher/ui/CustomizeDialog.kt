@@ -37,6 +37,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AccessibilityNew
 import androidx.compose.material.icons.outlined.AccountCircle
@@ -54,6 +55,8 @@ import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Input
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Link
@@ -127,6 +130,7 @@ import com.tk.toolkit.tv.launcher.data.CustomKeyMapping
 import com.tk.toolkit.tv.launcher.data.FolderBrowserState
 import com.tk.toolkit.tv.launcher.data.InstallOutcome
 import com.tk.toolkit.tv.launcher.data.LauncherApp
+import com.tk.toolkit.tv.launcher.data.LauncherPrefs
 import com.tk.toolkit.tv.launcher.data.LocalImageEntry
 import com.tk.toolkit.tv.launcher.data.LocaleHelper
 import com.tk.toolkit.tv.launcher.data.ReleaseInfo
@@ -153,19 +157,31 @@ private val SAFE_AREA_VERTICAL = 28.dp
 private sealed interface CustomizePage {
     val depth: Int
     data object Main : CustomizePage { override val depth = 0 }
-    data object ThemeWallpaper : CustomizePage { override val depth = 1 }
-    data object WallpaperLocalFile : CustomizePage { override val depth = 2 }
-    data object WallpaperUrl : CustomizePage { override val depth = 2 }
+
+    // Group pages (level 1)
+    data object AppearanceGroup : CustomizePage { override val depth = 1 }
+    data object ControlsGroup : CustomizePage { override val depth = 1 }
     data object Language : CustomizePage { override val depth = 1 }
-    data object WatchSources : CustomizePage { override val depth = 1 }
-    data object AutoLaunch : CustomizePage { override val depth = 1 }
-    data object BackupRestore : CustomizePage { override val depth = 1 }
-    data object AppUpdate : CustomizePage { override val depth = 1 }
-    data object RemoteButtonsList : CustomizePage { override val depth = 1 }
-    data class RemoteButtonDetail(val button: RemoteButton) : CustomizePage { override val depth = 2 }
-    data class CaptureKey(val button: RemoteButton) : CustomizePage { override val depth = 3 }
-    data object CaptureNewCustomKey : CustomizePage { override val depth = 2 }
-    data class CustomKeyDetail(val keyCode: Int, val scanCode: Int, val isNew: Boolean) : CustomizePage { override val depth = 2 }
+    data object SystemGroup : CustomizePage { override val depth = 1 }
+
+    // Appearance & Layout
+    data object ThemeWallpaper : CustomizePage { override val depth = 2 }
+    data object WallpaperLocalFile : CustomizePage { override val depth = 3 }
+    data object WallpaperUrl : CustomizePage { override val depth = 3 }
+    data object WatchSources : CustomizePage { override val depth = 2 }
+
+    // Controls & Device behavior
+    data object AutoLaunch : CustomizePage { override val depth = 2 }
+    data object RemoteButtonsList : CustomizePage { override val depth = 2 }
+    data class RemoteButtonDetail(val button: RemoteButton) : CustomizePage { override val depth = 3 }
+    data class CaptureKey(val button: RemoteButton) : CustomizePage { override val depth = 4 }
+    data object CaptureNewCustomKey : CustomizePage { override val depth = 3 }
+    data class CustomKeyDetail(val keyCode: Int, val scanCode: Int, val isNew: Boolean) : CustomizePage { override val depth = 3 }
+
+    // System & Updates
+    data object AppUpdate : CustomizePage { override val depth = 2 }
+    data object BackupRestore : CustomizePage { override val depth = 2 }
+    data object AdvancedSettings : CustomizePage { override val depth = 2 }
 }
 
 @Composable
@@ -222,19 +238,23 @@ fun CustomizeDialog(
                 onDismiss()
                 return
             }
-            CustomizePage.ThemeWallpaper -> CustomizePage.Main
+            CustomizePage.AppearanceGroup -> CustomizePage.Main
+            CustomizePage.ControlsGroup -> CustomizePage.Main
+            CustomizePage.Language -> CustomizePage.Main
+            CustomizePage.SystemGroup -> CustomizePage.Main
+            CustomizePage.ThemeWallpaper -> CustomizePage.AppearanceGroup
             CustomizePage.WallpaperLocalFile -> CustomizePage.ThemeWallpaper
             CustomizePage.WallpaperUrl -> CustomizePage.ThemeWallpaper
-            CustomizePage.Language -> CustomizePage.Main
-            CustomizePage.WatchSources -> CustomizePage.Main
-            CustomizePage.AutoLaunch -> CustomizePage.Main
-            CustomizePage.BackupRestore -> CustomizePage.Main
-            CustomizePage.AppUpdate -> CustomizePage.Main
-            CustomizePage.RemoteButtonsList -> CustomizePage.Main
+            CustomizePage.WatchSources -> CustomizePage.AppearanceGroup
+            CustomizePage.AutoLaunch -> CustomizePage.ControlsGroup
+            CustomizePage.RemoteButtonsList -> CustomizePage.ControlsGroup
             is CustomizePage.RemoteButtonDetail -> CustomizePage.RemoteButtonsList
             is CustomizePage.CaptureKey -> CustomizePage.RemoteButtonDetail(current.button)
             CustomizePage.CaptureNewCustomKey -> CustomizePage.RemoteButtonsList
             is CustomizePage.CustomKeyDetail -> CustomizePage.RemoteButtonsList
+            CustomizePage.AppUpdate -> CustomizePage.SystemGroup
+            CustomizePage.BackupRestore -> CustomizePage.SystemGroup
+            CustomizePage.AdvancedSettings -> CustomizePage.SystemGroup
         }
     }
 
@@ -298,30 +318,55 @@ fun CustomizeDialog(
                         when (current) {
                             CustomizePage.Main -> {
                                 MainCustomizePanel(
-                                    showWatchRow = showWatchRow,
                                     appColumns = appColumns,
-                                    backToAmbient = backToAmbient,
                                     language = language,
                                     themePalette = themePalette,
-                                    autoLaunchTarget = autoLaunchTarget,
                                     availableUpdateVersion = availableUpdateVersion,
-                                    apps = apps,
-                                    tvInputs = tvInputs,
+                                    onSetLanguage = onSetLanguage,
+                                    onOpenAppearance = { page = CustomizePage.AppearanceGroup },
+                                    onOpenControls = { page = CustomizePage.ControlsGroup },
+                                    onOpenLanguage = { page = CustomizePage.Language },
+                                    onOpenSystem = { page = CustomizePage.SystemGroup },
+                                    onRefresh = onRefresh,
+                                )
+                            }
+                            CustomizePage.AppearanceGroup -> {
+                                AppearanceGroupPanel(
+                                    showWatchRow = showWatchRow,
+                                    appColumns = appColumns,
+                                    themePalette = themePalette,
                                     enabledCount = apps.count { it.packageName !in disabledWatchPackages },
                                     totalCount = apps.size,
                                     onToggleWatchRow = onToggleWatchRow,
                                     onSetAppColumns = onSetAppColumns,
-                                    onToggleBackToAmbient = onToggleBackToAmbient,
-                                    onSetLanguage = onSetLanguage,
                                     onOpenThemeWallpaper = { page = CustomizePage.ThemeWallpaper },
-                                    onOpenLanguage = { page = CustomizePage.Language },
                                     onOpenSources = { page = CustomizePage.WatchSources },
+                                    onBack = ::navigateBack,
+                                )
+                            }
+                            CustomizePage.ControlsGroup -> {
+                                ControlsGroupPanel(
+                                    backToAmbient = backToAmbient,
+                                    autoLaunchTarget = autoLaunchTarget,
+                                    apps = apps,
+                                    tvInputs = tvInputs,
+                                    onToggleBackToAmbient = onToggleBackToAmbient,
                                     onOpenAutoLaunch = { page = CustomizePage.AutoLaunch },
                                     onOpenRemoteButtons = { page = CustomizePage.RemoteButtonsList },
-                                    onOpenBackupRestore = { page = CustomizePage.BackupRestore },
-                                    onOpenAppUpdate = { page = CustomizePage.AppUpdate },
-                                    onRefresh = onRefresh,
+                                    onBack = ::navigateBack,
                                 )
+                            }
+                            CustomizePage.SystemGroup -> {
+                                SystemGroupPanel(
+                                    availableUpdateVersion = availableUpdateVersion,
+                                    onOpenAppUpdate = { page = CustomizePage.AppUpdate },
+                                    onOpenBackupRestore = { page = CustomizePage.BackupRestore },
+                                    onOpenAdvanced = { page = CustomizePage.AdvancedSettings },
+                                    onBack = ::navigateBack,
+                                )
+                            }
+                            CustomizePage.AdvancedSettings -> {
+                                AdvancedSettingsPanel(onBack = ::navigateBack)
                             }
                             CustomizePage.ThemeWallpaper -> {
                                 ThemeWallpaperPanel(
@@ -531,33 +576,21 @@ fun CustomizeDialog(
 
 @Composable
 private fun MainCustomizePanel(
-    showWatchRow: Boolean,
     appColumns: Int,
-    backToAmbient: Boolean,
     language: AppLanguage,
     themePalette: AppThemePalette,
-    autoLaunchTarget: String,
     availableUpdateVersion: String,
-    apps: List<LauncherApp>,
-    tvInputs: List<TvInputEntry>,
-    enabledCount: Int,
-    totalCount: Int,
-    onToggleWatchRow: (Boolean) -> Unit,
-    onSetAppColumns: (Int) -> Unit,
-    onToggleBackToAmbient: (Boolean) -> Unit,
     onSetLanguage: (AppLanguage) -> Unit,
-    onOpenThemeWallpaper: () -> Unit,
+    onOpenAppearance: () -> Unit,
+    onOpenControls: () -> Unit,
     onOpenLanguage: () -> Unit,
-    onOpenSources: () -> Unit,
-    onOpenAutoLaunch: () -> Unit,
-    onOpenRemoteButtons: () -> Unit,
-    onOpenBackupRestore: () -> Unit,
-    onOpenAppUpdate: () -> Unit,
+    onOpenSystem: () -> Unit,
     onRefresh: () -> Unit,
 ) {
     val context = LocalContext.current
     val firstAction = remember { FocusRequester() }
-    val appsByPkg = remember(apps) { apps.associateBy { it.packageName } }
+    val versionName = remember(context) { AppUpdateManager.currentVersionName(context) }
+    val hasUpdate = availableUpdateVersion.isNotBlank()
     LaunchedEffect(Unit) { firstAction.requestFocusWhenReady() }
 
     Column(Modifier.fillMaxSize()) {
@@ -570,217 +603,50 @@ private fun MainCustomizePanel(
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.weight(1f),
         ) {
-            item(key = "theme_wallpaper") {
+            item(key = "group_appearance") {
                 TvSettingsItem(
                     icon = Icons.Outlined.Palette,
-                    title = stringResource(R.string.customize_theme_wallpaper),
-                    subtitle = stringResource(themePalette.titleRes),
-                    onClick = onOpenThemeWallpaper,
+                    title = stringResource(R.string.group_appearance),
+                    subtitle = stringResource(
+                        R.string.group_appearance_subtitle,
+                        stringResource(themePalette.titleRes),
+                        appColumns,
+                    ),
+                    onClick = onOpenAppearance,
                     modifier = Modifier.focusRequester(firstAction),
                     showChevron = true,
                 )
             }
-            item(key = "app_columns") {
-                TvSettingsItem(
-                    icon = Icons.Outlined.GridView,
-                    title = stringResource(R.string.customize_app_grid),
-                    subtitle = stringResource(R.string.customize_app_grid_subtitle, appColumns),
-                    onClick = {
-                        val next = if (appColumns >= 6) 4 else appColumns + 1
-                        onSetAppColumns(next)
-                    },
-                    modifier = Modifier.onPreviewKeyEvent { event ->
-                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                        when (event.nativeKeyEvent.keyCode) {
-                            KeyEvent.KEYCODE_DPAD_LEFT -> {
-                                if (appColumns > 4) onSetAppColumns(appColumns - 1)
-                                true
-                            }
-                            KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                                if (appColumns < 6) onSetAppColumns(appColumns + 1)
-                                true
-                            }
-                            else -> false
-                        }
-                    },
-                    trailingContent = {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            listOf(4, 5, 6).forEach { count ->
-                                val active = count == appColumns
-                                val pillShape = RoundedCornerShape(6.dp)
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier
-                                        .background(
-                                            if (active) ToolkitColors.Accent else ToolkitColors.OnSurface.copy(alpha = 0.08f),
-                                            pillShape,
-                                        )
-                                        .padding(horizontal = 8.dp, vertical = 3.dp),
-                                ) {
-                                    Text(
-                                        "$count",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = if (active) ToolkitColors.Background else ToolkitColors.OnSurfaceMuted,
-                                    )
-                                }
-                            }
-                        }
-                    },
-                )
-            }
-            item(key = "language") {
-                val languages = AppLanguage.entries
-                TvSettingsItem(
-                    icon = Icons.Outlined.Language,
-                    title = stringResource(R.string.customize_language),
-                    subtitle = language.nativeName,
-                    onClick = onOpenLanguage,
-                    modifier = Modifier.onPreviewKeyEvent { event ->
-                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                        val idx = languages.indexOf(language).coerceAtLeast(0)
-                        when (event.nativeKeyEvent.keyCode) {
-                            KeyEvent.KEYCODE_DPAD_LEFT -> {
-                                val prev = languages[(idx - 1 + languages.size) % languages.size]
-                                onSetLanguage(prev)
-                                true
-                            }
-                            KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                                val next = languages[(idx + 1) % languages.size]
-                                onSetLanguage(next)
-                                true
-                            }
-                            else -> false
-                        }
-                    },
-                    trailingContent = {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            languages.forEach { lang ->
-                                val active = lang == language
-                                val pillShape = RoundedCornerShape(6.dp)
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier
-                                        .background(
-                                            if (active) ToolkitColors.Accent else ToolkitColors.OnSurface.copy(alpha = 0.08f),
-                                            pillShape,
-                                        )
-                                        .padding(horizontal = 8.dp, vertical = 3.dp),
-                                ) {
-                                    Text(
-                                        lang.code.uppercase(),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = if (active) ToolkitColors.Background else ToolkitColors.OnSurfaceMuted,
-                                    )
-                                }
-                            }
-                        }
-                    },
-                )
-            }
-            item(key = "show_watch_row") {
-                TvSettingsItem(
-                    icon = Icons.Outlined.PlayCircleOutline,
-                    title = stringResource(R.string.customize_show_watch_row),
-                    subtitle = if (showWatchRow) stringResource(R.string.customize_show_watch_row_on)
-                    else stringResource(R.string.customize_show_watch_row_off),
-                    onClick = { onToggleWatchRow(!showWatchRow) },
-                    trailingContent = {
-                        TvSwitch(checked = showWatchRow)
-                    },
-                )
-            }
-            item(key = "watch_sources") {
-                TvSettingsItem(
-                    icon = Icons.Outlined.VideoLibrary,
-                    title = stringResource(R.string.customize_watch_sources),
-                    subtitle = stringResource(R.string.customize_watch_sources_subtitle, enabledCount, totalCount),
-                    onClick = onOpenSources,
-                    showChevron = true,
-                )
-            }
-            item(key = "auto_launch") {
-                TvSettingsItem(
-                    icon = Icons.Outlined.PowerSettingsNew,
-                    title = stringResource(R.string.customize_auto_launch),
-                    subtitle = AutoLaunchManager.formatTargetLabel(context, autoLaunchTarget, appsByPkg, tvInputs),
-                    onClick = onOpenAutoLaunch,
-                    showChevron = true,
-                )
-            }
-            item(key = "back_to_ambient") {
-                TvSettingsItem(
-                    icon = Icons.Outlined.Bedtime,
-                    title = stringResource(R.string.customize_back_to_ambient),
-                    subtitle = if (backToAmbient) stringResource(R.string.customize_back_to_ambient_on)
-                    else stringResource(R.string.customize_back_to_ambient_off),
-                    onClick = { onToggleBackToAmbient(!backToAmbient) },
-                    trailingContent = {
-                        TvSwitch(checked = backToAmbient)
-                    },
-                )
-            }
-            item(key = "remote_buttons") {
+            item(key = "group_controls") {
                 TvSettingsItem(
                     icon = Icons.Outlined.SettingsRemote,
-                    title = stringResource(R.string.customize_remote_buttons),
-                    subtitle = stringResource(R.string.customize_remote_buttons_subtitle),
-                    onClick = onOpenRemoteButtons,
+                    title = stringResource(R.string.group_controls),
+                    subtitle = stringResource(R.string.group_controls_subtitle),
+                    onClick = onOpenControls,
                     showChevron = true,
                 )
             }
-            item(key = "backup_restore") {
-                TvSettingsItem(
-                    icon = Icons.Outlined.Backup,
-                    title = stringResource(R.string.customize_backup_restore),
-                    subtitle = stringResource(R.string.customize_backup_restore_subtitle),
-                    onClick = onOpenBackupRestore,
-                    showChevron = true,
+            item(key = "group_language") {
+                LanguageQuickItem(
+                    title = stringResource(R.string.group_language),
+                    language = language,
+                    onSetLanguage = onSetLanguage,
+                    onClick = onOpenLanguage,
                 )
             }
-            item(key = "app_update") {
-                val versionName = remember(context) { AppUpdateManager.currentVersionName(context) }
-                val hasUpdate = availableUpdateVersion.isNotBlank()
+            item(key = "group_system") {
                 TvSettingsItem(
-                    icon = Icons.Outlined.SystemUpdateAlt,
-                    title = stringResource(R.string.update_title),
+                    icon = Icons.Outlined.Settings,
+                    title = stringResource(R.string.group_system),
                     subtitle = if (hasUpdate) {
                         stringResource(R.string.update_subtitle_available, availableUpdateVersion)
                     } else {
-                        stringResource(R.string.update_subtitle, versionName)
+                        stringResource(R.string.group_system_subtitle, versionName)
                     },
-                    onClick = onOpenAppUpdate,
+                    onClick = onOpenSystem,
                     showChevron = !hasUpdate,
                     trailingContent = if (hasUpdate) {
-                        {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier
-                                        .background(ToolkitColors.Accent, CircleShape)
-                                        .padding(horizontal = 8.dp, vertical = 2.dp),
-                                ) {
-                                    Text(
-                                        text = stringResource(R.string.update_badge_new),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = ToolkitColors.Background,
-                                    )
-                                }
-                                Icon(
-                                    Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-                        }
+                        { NewBadgeWithChevron() }
                     } else null,
                 )
             }
@@ -796,6 +662,413 @@ private fun MainCustomizePanel(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun AppearanceGroupPanel(
+    showWatchRow: Boolean,
+    appColumns: Int,
+    themePalette: AppThemePalette,
+    enabledCount: Int,
+    totalCount: Int,
+    onToggleWatchRow: (Boolean) -> Unit,
+    onSetAppColumns: (Int) -> Unit,
+    onOpenThemeWallpaper: () -> Unit,
+    onOpenSources: () -> Unit,
+    onBack: () -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    val firstItem = remember { FocusRequester() }
+    LaunchedEffect(Unit) { firstItem.requestFocusWhenReady() }
+
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.customize_title),
+            title = stringResource(R.string.group_appearance),
+            subtitle = stringResource(R.string.customize_theme_wallpaper_subtitle),
+        )
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            item(key = "theme_wallpaper") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.Palette,
+                    title = stringResource(R.string.customize_theme_wallpaper),
+                    subtitle = stringResource(themePalette.titleRes),
+                    onClick = onOpenThemeWallpaper,
+                    modifier = Modifier.focusRequester(firstItem),
+                    showChevron = true,
+                )
+            }
+            item(key = "app_columns") {
+                AppGridSizeItem(appColumns = appColumns, onSetAppColumns = onSetAppColumns)
+            }
+            item(key = "show_watch_row") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.PlayCircleOutline,
+                    title = stringResource(R.string.customize_show_watch_row),
+                    subtitle = if (showWatchRow) stringResource(R.string.customize_show_watch_row_on)
+                    else stringResource(R.string.customize_show_watch_row_off),
+                    onClick = { onToggleWatchRow(!showWatchRow) },
+                    trailingContent = { TvSwitch(checked = showWatchRow) },
+                )
+            }
+            item(key = "watch_sources") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.VideoLibrary,
+                    title = stringResource(R.string.customize_watch_sources),
+                    subtitle = stringResource(R.string.customize_watch_sources_subtitle, enabledCount, totalCount),
+                    onClick = onOpenSources,
+                    showChevron = true,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ControlsGroupPanel(
+    backToAmbient: Boolean,
+    autoLaunchTarget: String,
+    apps: List<LauncherApp>,
+    tvInputs: List<TvInputEntry>,
+    onToggleBackToAmbient: (Boolean) -> Unit,
+    onOpenAutoLaunch: () -> Unit,
+    onOpenRemoteButtons: () -> Unit,
+    onBack: () -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    val context = LocalContext.current
+    val firstItem = remember { FocusRequester() }
+    val appsByPkg = remember(apps) { apps.associateBy { it.packageName } }
+    LaunchedEffect(Unit) { firstItem.requestFocusWhenReady() }
+
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.customize_title),
+            title = stringResource(R.string.group_controls),
+            subtitle = stringResource(R.string.group_controls_subtitle),
+        )
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            item(key = "auto_launch") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.PowerSettingsNew,
+                    title = stringResource(R.string.customize_auto_launch),
+                    subtitle = AutoLaunchManager.formatTargetLabel(context, autoLaunchTarget, appsByPkg, tvInputs),
+                    onClick = onOpenAutoLaunch,
+                    modifier = Modifier.focusRequester(firstItem),
+                    showChevron = true,
+                )
+            }
+            item(key = "remote_buttons") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.SettingsRemote,
+                    title = stringResource(R.string.customize_remote_buttons),
+                    subtitle = stringResource(R.string.customize_remote_buttons_subtitle),
+                    onClick = onOpenRemoteButtons,
+                    showChevron = true,
+                )
+            }
+            item(key = "back_to_ambient") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.Bedtime,
+                    title = stringResource(R.string.customize_back_to_ambient),
+                    subtitle = if (backToAmbient) stringResource(R.string.customize_back_to_ambient_on)
+                    else stringResource(R.string.customize_back_to_ambient_off),
+                    onClick = { onToggleBackToAmbient(!backToAmbient) },
+                    trailingContent = { TvSwitch(checked = backToAmbient) },
+                )
+            }
+        }
+    }
+}
+
+private const val ADVANCED_TAP_TARGET = 5
+private const val ADVANCED_TAP_RESET_MS = 3_000L
+
+@Composable
+private fun SystemGroupPanel(
+    availableUpdateVersion: String,
+    onOpenAppUpdate: () -> Unit,
+    onOpenBackupRestore: () -> Unit,
+    onOpenAdvanced: () -> Unit,
+    onBack: () -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    val context = LocalContext.current
+    val prefs = remember(context) { LauncherPrefs(context) }
+    val firstItem = remember { FocusRequester() }
+    val versionName = remember(context) { AppUpdateManager.currentVersionName(context) }
+    val versionCode = remember(context) { AppUpdateManager.currentVersionCode(context) }
+    val hasUpdate = availableUpdateVersion.isNotBlank()
+
+    var advancedVisible by remember { mutableStateOf(prefs.isAdvancedSettingsVisible()) }
+    var tapCount by remember { mutableIntStateOf(0) }
+    var lastTapAt by remember { mutableStateOf(0L) }
+    var activeToast by remember { mutableStateOf<Toast?>(null) }
+
+    fun showToast(message: String) {
+        activeToast?.cancel()
+        activeToast = Toast.makeText(context, message, Toast.LENGTH_SHORT).also { it.show() }
+    }
+
+    fun onVersionTapped() {
+        val now = System.currentTimeMillis()
+        tapCount = if (now - lastTapAt > ADVANCED_TAP_RESET_MS) 1 else tapCount + 1
+        lastTapAt = now
+        val remaining = ADVANCED_TAP_TARGET - tapCount
+        when {
+            remaining <= 0 -> {
+                advancedVisible = !advancedVisible
+                prefs.setAdvancedSettingsVisible(advancedVisible)
+                tapCount = 0
+                showToast(
+                    context.getString(
+                        if (advancedVisible) R.string.toast_advanced_shown else R.string.toast_advanced_hidden,
+                    ),
+                )
+            }
+            tapCount >= 2 -> showToast(
+                context.getString(
+                    if (advancedVisible) R.string.toast_advanced_taps_to_hide else R.string.toast_advanced_taps_to_show,
+                    remaining,
+                ),
+            )
+        }
+    }
+
+    LaunchedEffect(Unit) { firstItem.requestFocusWhenReady() }
+
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.customize_title),
+            title = stringResource(R.string.group_system),
+            subtitle = stringResource(R.string.group_system_subtitle, versionName),
+        )
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            item(key = "version_info") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.Info,
+                    title = stringResource(R.string.system_version_title),
+                    subtitle = stringResource(R.string.system_version_subtitle, versionName, versionCode),
+                    onClick = ::onVersionTapped,
+                    modifier = Modifier.focusRequester(firstItem),
+                )
+            }
+            item(key = "check_update") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.SystemUpdateAlt,
+                    title = stringResource(R.string.system_check_update),
+                    subtitle = if (hasUpdate) {
+                        stringResource(R.string.update_subtitle_available, availableUpdateVersion)
+                    } else {
+                        stringResource(R.string.update_check_now_subtitle)
+                    },
+                    onClick = onOpenAppUpdate,
+                    showChevron = !hasUpdate,
+                    trailingContent = if (hasUpdate) {
+                        { NewBadgeWithChevron() }
+                    } else null,
+                )
+            }
+            item(key = "backup_restore") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.Backup,
+                    title = stringResource(R.string.customize_backup_restore),
+                    subtitle = stringResource(R.string.customize_backup_restore_subtitle),
+                    onClick = onOpenBackupRestore,
+                    showChevron = true,
+                )
+            }
+            if (advancedVisible) {
+                item(key = "advanced_settings") {
+                    TvSettingsItem(
+                        icon = Icons.Outlined.Tune,
+                        title = stringResource(R.string.advanced_title),
+                        subtitle = stringResource(R.string.advanced_subtitle),
+                        onClick = onOpenAdvanced,
+                        showChevron = true,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdvancedSettingsPanel(onBack: () -> Unit) {
+    BackHandler(onBack = onBack)
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocusWhenReady() }
+
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.group_system),
+            title = stringResource(R.string.advanced_title),
+            subtitle = stringResource(R.string.advanced_subtitle),
+        )
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                stringResource(R.string.advanced_empty),
+                style = MaterialTheme.typography.bodySmall,
+                color = ToolkitColors.OnSurfaceMuted,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+            // Placeholder focus target so D-pad/Back keep working on an empty page.
+            TvSettingsItem(
+                icon = Icons.AutoMirrored.Outlined.ArrowBack,
+                title = stringResource(R.string.common_back),
+                subtitle = stringResource(R.string.group_system),
+                onClick = onBack,
+                modifier = Modifier.focusRequester(focus),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AppGridSizeItem(
+    appColumns: Int,
+    onSetAppColumns: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    TvSettingsItem(
+        icon = Icons.Outlined.GridView,
+        title = stringResource(R.string.customize_app_grid),
+        subtitle = stringResource(R.string.customize_app_grid_subtitle, appColumns),
+        onClick = {
+            val next = if (appColumns >= 6) 4 else appColumns + 1
+            onSetAppColumns(next)
+        },
+        modifier = modifier.onPreviewKeyEvent { event ->
+            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+            when (event.nativeKeyEvent.keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    if (appColumns > 4) onSetAppColumns(appColumns - 1)
+                    true
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    if (appColumns < 6) onSetAppColumns(appColumns + 1)
+                    true
+                }
+                else -> false
+            }
+        },
+        trailingContent = {
+            PillSelector(
+                labels = listOf("4", "5", "6"),
+                activeIndex = (appColumns - 4).coerceIn(0, 2),
+            )
+        },
+    )
+}
+
+@Composable
+private fun LanguageQuickItem(
+    title: String,
+    language: AppLanguage,
+    onSetLanguage: (AppLanguage) -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val languages = AppLanguage.entries
+    TvSettingsItem(
+        icon = Icons.Outlined.Language,
+        title = title,
+        subtitle = language.nativeName,
+        onClick = onClick,
+        modifier = modifier.onPreviewKeyEvent { event ->
+            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+            val idx = languages.indexOf(language).coerceAtLeast(0)
+            when (event.nativeKeyEvent.keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    onSetLanguage(languages[(idx - 1 + languages.size) % languages.size])
+                    true
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    onSetLanguage(languages[(idx + 1) % languages.size])
+                    true
+                }
+                else -> false
+            }
+        },
+        trailingContent = {
+            PillSelector(
+                labels = languages.map { it.code.uppercase() },
+                activeIndex = languages.indexOf(language),
+            )
+        },
+    )
+}
+
+@Composable
+private fun PillSelector(labels: List<String>, activeIndex: Int) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        labels.forEachIndexed { index, label ->
+            val active = index == activeIndex
+            val pillShape = RoundedCornerShape(6.dp)
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .background(
+                        if (active) ToolkitColors.Accent else ToolkitColors.OnSurface.copy(alpha = 0.08f),
+                        pillShape,
+                    )
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+            ) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (active) ToolkitColors.Background else ToolkitColors.OnSurfaceMuted,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NewBadgeWithChevron() {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .background(ToolkitColors.Accent, CircleShape)
+                .padding(horizontal = 8.dp, vertical = 2.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.update_badge_new),
+                style = MaterialTheme.typography.labelSmall,
+                color = ToolkitColors.Background,
+            )
+        }
+        Icon(
+            Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+        )
     }
 }
 
@@ -882,7 +1155,7 @@ private fun AppUpdatePanel(
 
     Column(Modifier.fillMaxSize()) {
         SheetHeader(
-            breadcrumb = stringResource(R.string.customize_title),
+            breadcrumb = stringResource(R.string.group_system),
             title = stringResource(R.string.update_title),
             subtitle = stringResource(
                 R.string.update_panel_subtitle,
@@ -1087,7 +1360,7 @@ private fun ThemeWallpaperPanel(
 
     Column(Modifier.fillMaxSize()) {
         SheetHeader(
-            breadcrumb = stringResource(R.string.customize_title),
+            breadcrumb = stringResource(R.string.group_appearance),
             title = stringResource(R.string.customize_theme_wallpaper),
             subtitle = stringResource(R.string.customize_theme_wallpaper_subtitle),
         )
@@ -1633,7 +1906,7 @@ private fun AutoLaunchPanel(
 
     Column(Modifier.fillMaxSize()) {
         SheetHeader(
-            breadcrumb = stringResource(R.string.customize_title),
+            breadcrumb = stringResource(R.string.group_controls),
             title = stringResource(R.string.customize_auto_launch),
             subtitle = stringResource(R.string.customize_auto_launch_panel_subtitle),
         )
@@ -1754,7 +2027,7 @@ private fun BackupRestorePanel(
 
     Column(Modifier.fillMaxSize()) {
         SheetHeader(
-            breadcrumb = stringResource(R.string.customize_title),
+            breadcrumb = stringResource(R.string.group_system),
             title = stringResource(R.string.customize_backup_restore),
             subtitle = stringResource(R.string.customize_backup_restore_subtitle),
         )
@@ -1886,7 +2159,7 @@ private fun RemoteButtonsPanel(
 
     Column(Modifier.fillMaxSize()) {
         SheetHeader(
-            breadcrumb = stringResource(R.string.customize_title),
+            breadcrumb = stringResource(R.string.group_controls),
             title = stringResource(R.string.customize_remote_buttons),
             subtitle = stringResource(R.string.customize_remote_buttons_panel_subtitle),
         )
@@ -2298,7 +2571,7 @@ private fun WatchSourcesPanel(
 
     Column(Modifier.fillMaxSize()) {
         SheetHeader(
-            breadcrumb = stringResource(R.string.customize_title),
+            breadcrumb = stringResource(R.string.group_appearance),
             title = stringResource(R.string.customize_watch_sources),
             subtitle = stringResource(R.string.customize_watch_sources_panel_subtitle),
         )

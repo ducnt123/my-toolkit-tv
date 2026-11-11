@@ -138,6 +138,12 @@ class LauncherPrefs(context: Context) {
     fun isOverrideHomeKeyEnabled(defaultValue: Boolean = false): Boolean =
         prefs.getBoolean(KEY_OVERRIDE_HOME, defaultValue)
 
+    fun isAdvancedSettingsVisible(): Boolean = prefs.getBoolean(KEY_ADVANCED_VISIBLE, false)
+
+    fun setAdvancedSettingsVisible(visible: Boolean) {
+        prefs.edit { putBoolean(KEY_ADVANCED_VISIBLE, visible) }
+    }
+
     fun hasOverrideHomeKeyPref(): Boolean = prefs.contains(KEY_OVERRIDE_HOME)
 
     fun setOverrideHomeKeyEnabled(enabled: Boolean) {
@@ -385,6 +391,7 @@ class LauncherPrefs(context: Context) {
         const val KEY_LAST_UPDATE_CHECK_MS = "last_update_check_ms"
         const val KEY_AVAILABLE_UPDATE_VERSION = "available_update_version"
         const val KEY_OVERRIDE_HOME = "override_home"
+        const val KEY_ADVANCED_VISIBLE = "advanced_settings_visible"
         const val KEY_REMOTE_TARGET_PREFIX = "remote_target_"
         const val KEY_REMOTE_KEYCODE_PREFIX = "remote_keycode_"
         const val KEY_REMOTE_SCANCODE_PREFIX = "remote_scancode_"

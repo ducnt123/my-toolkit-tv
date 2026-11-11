@@ -65,6 +65,8 @@ data class LauncherState(
     val dynamicAmbientColor: Boolean = false,
     /** Optional custom wallpaper bitmap loaded from internal storage. */
     val customWallpaper: ImageBitmap? = null,
+    /** Darkness percentage (0-100) for the scrim overlay over custom wallpaper. */
+    val wallpaperDim: Int = LauncherPrefs.DEFAULT_WALLPAPER_DIM,
     /** Target app package or TV input ID to auto-launch on boot/wake ("" = off). */
     val autoLaunchTarget: String = "",
     /** Whether auto-launch runs on cold device boot. */
@@ -100,6 +102,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             language = AppLanguage.fromCode(prefs.language()),
             themePalette = prefs.themePalette(),
             dynamicAmbientColor = prefs.isDynamicAmbientEnabled(),
+            wallpaperDim = prefs.wallpaperDim(),
             autoLaunchTarget = prefs.autoLaunchTarget(),
             autoLaunchOnBoot = prefs.isAutoLaunchOnBootEnabled(),
             autoLaunchOnWake = prefs.isAutoLaunchOnWakeEnabled(),
@@ -144,6 +147,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val language = AppLanguage.fromCode(prefs.language())
             val palette = prefs.themePalette()
             val dynamicAmbient = prefs.isDynamicAmbientEnabled()
+            val wallpaperDim = prefs.wallpaperDim()
             val autoTarget = prefs.autoLaunchTarget()
             val autoBoot = prefs.isAutoLaunchOnBootEnabled()
             val autoWake = prefs.isAutoLaunchOnWakeEnabled()
@@ -169,6 +173,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     themePalette = palette,
                     dynamicAmbientColor = dynamicAmbient,
                     customWallpaper = wallpaper,
+                    wallpaperDim = wallpaperDim,
                     autoLaunchTarget = autoTarget,
                     autoLaunchOnBoot = autoBoot,
                     autoLaunchOnWake = autoWake,
@@ -270,6 +275,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun setDynamicAmbientEnabled(enabled: Boolean) {
         prefs.setDynamicAmbientEnabled(enabled)
         _state.update { it.copy(dynamicAmbientColor = enabled) }
+    }
+
+    fun setWallpaperDim(dim: Int) {
+        val clamped = dim.coerceIn(0, 100)
+        prefs.setWallpaperDim(clamped)
+        _state.update { it.copy(wallpaperDim = clamped) }
     }
 
     fun setWallpaperFromUri(uri: Uri, onResult: (Boolean) -> Unit) {
@@ -458,6 +469,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 themePalette = current.themePalette,
                 dynamicAmbientColor = current.dynamicAmbientColor,
                 customWallpaper = current.customWallpaper,
+                wallpaperDim = current.wallpaperDim,
                 autoLaunchTarget = current.autoLaunchTarget,
                 autoLaunchOnBoot = current.autoLaunchOnBoot,
                 autoLaunchOnWake = current.autoLaunchOnWake,

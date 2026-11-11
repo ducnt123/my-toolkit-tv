@@ -63,7 +63,10 @@ fun ToolkitApp(viewModel: LauncherViewModel = viewModel()) {
                             dstSize = dst,
                             filterQuality = FilterQuality.Low,
                         )
-                        drawRect(Color.Black.copy(alpha = 0.44f))
+                        val dimAlpha = state.wallpaperDim.coerceIn(0, 100) / 100f
+                        if (dimAlpha > 0f) {
+                            drawRect(Color.Black.copy(alpha = dimAlpha))
+                        }
                     } else {
                         drawImage(
                             baseBackdrop,

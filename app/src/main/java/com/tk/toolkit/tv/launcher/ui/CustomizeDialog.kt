@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,6 +47,7 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Backup
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.outlined.Brightness6
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.FileDownload
@@ -88,6 +90,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -184,6 +187,106 @@ private sealed interface CustomizePage {
     data object AdvancedSettings : CustomizePage { override val depth = 2 }
 }
 
+private class PanelFocusMemory {
+    private val focusedKeys = mutableMapOf<Any, String>()
+    private val scrollPositions = mutableMapOf<Any, Pair<Int, Int>>()
+
+    fun keyFor(pageKey: Any): String? = focusedKeys[pageKey]
+
+    fun saveKey(pageKey: Any, itemKey: String) {
+        focusedKeys[pageKey] = itemKey
+    }
+
+    fun scrollFor(pageKey: Any): Pair<Int, Int>? = scrollPositions[pageKey]
+
+    fun saveScroll(pageKey: Any, index: Int, offset: Int) {
+        scrollPositions[pageKey] = index to offset
+    }
+
+    fun clear(pageKey: Any) {
+        focusedKeys.remove(pageKey)
+        scrollPositions.remove(pageKey)
+    }
+}
+
+private class PanelFocusController(
+    private val pageKey: Any,
+    private val memory: PanelFocusMemory,
+    val listState: LazyListState,
+    private val fallbackFirstKey: String?,
+) {
+    private val requesters = mutableMapOf<String, FocusRequester>()
+
+    fun requesterFor(itemKey: String): FocusRequester =
+        requesters.getOrPut(itemKey) { FocusRequester() }
+
+    /**
+     * Attaches a [FocusRequester] for [itemKey] and remembers it when focused so returning
+     * via Back restores focus (and list scroll position) to the same item.
+     */
+    fun modifierFor(itemKey: String): Modifier = Modifier
+        .focusRequester(requesterFor(itemKey))
+        .onFocusChanged { focusState ->
+            if (focusState.hasFocus) {
+                memory.saveKey(pageKey, itemKey)
+            }
+        }
+
+    fun saveNow(itemKey: String) {
+        memory.saveKey(pageKey, itemKey)
+        memory.saveScroll(
+            pageKey,
+            listState.firstVisibleItemIndex,
+            listState.firstVisibleItemScrollOffset,
+        )
+    }
+
+    suspend fun restoreFocus() {
+        val savedKey = memory.keyFor(pageKey)
+        if (savedKey != null) {
+            val target = requesters[savedKey]
+            if (target != null && target.tryRequestFocusWhenReady(maxFrames = 8)) {
+                return
+            }
+        }
+        val first = fallbackFirstKey?.let { requesters[it] } ?: requesters.values.firstOrNull()
+        first?.requestFocusWhenReady()
+    }
+}
+
+@Composable
+private fun rememberPanelFocus(
+    pageKey: Any,
+    memory: PanelFocusMemory,
+    fallbackFirstKey: String? = null,
+): PanelFocusController {
+    val savedScroll = remember(pageKey) { memory.scrollFor(pageKey) }
+    val listState = remember(pageKey) {
+        LazyListState(
+            firstVisibleItemIndex = savedScroll?.first ?: 0,
+            firstVisibleItemScrollOffset = savedScroll?.second ?: 0,
+        )
+    }
+    val controller = remember(pageKey, memory, listState, fallbackFirstKey) {
+        PanelFocusController(
+            pageKey = pageKey,
+            memory = memory,
+            listState = listState,
+            fallbackFirstKey = fallbackFirstKey,
+        )
+    }
+    DisposableEffect(pageKey, listState) {
+        onDispose {
+            memory.saveScroll(
+                pageKey,
+                listState.firstVisibleItemIndex,
+                listState.firstVisibleItemScrollOffset,
+            )
+        }
+    }
+    return controller
+}
+
 @Composable
 fun CustomizeDialog(
     showWatchRow: Boolean,
@@ -193,6 +296,7 @@ fun CustomizeDialog(
     themePalette: AppThemePalette,
     dynamicAmbientColor: Boolean,
     hasCustomWallpaper: Boolean,
+    wallpaperDim: Int,
     autoLaunchTarget: String,
     autoLaunchOnBoot: Boolean,
     autoLaunchOnWake: Boolean,
@@ -215,6 +319,7 @@ fun CustomizeDialog(
     onSetWallpaperFromFile: (File, (Boolean) -> Unit) -> Unit,
     onSetWallpaperFromUrl: (String, (Boolean) -> Unit) -> Unit,
     onClearWallpaper: () -> Unit,
+    onSetWallpaperDim: (Int) -> Unit,
     onSetAutoLaunchTarget: (String) -> Unit,
     onSetAutoLaunchOnBoot: (Boolean) -> Unit,
     onSetAutoLaunchOnWake: (Boolean) -> Unit,
@@ -231,6 +336,12 @@ fun CustomizeDialog(
     onDismiss: () -> Unit,
 ) {
     var page by remember { mutableStateOf<CustomizePage>(CustomizePage.Main) }
+    val focusMemory = remember { PanelFocusMemory() }
+
+    fun navigateForward(target: CustomizePage) {
+        focusMemory.clear(target)
+        page = target
+    }
 
     fun navigateBack() {
         page = when (val current = page) {
@@ -318,20 +429,22 @@ fun CustomizeDialog(
                         when (current) {
                             CustomizePage.Main -> {
                                 MainCustomizePanel(
+                                    focusMemory = focusMemory,
                                     appColumns = appColumns,
                                     language = language,
                                     themePalette = themePalette,
                                     availableUpdateVersion = availableUpdateVersion,
                                     onSetLanguage = onSetLanguage,
-                                    onOpenAppearance = { page = CustomizePage.AppearanceGroup },
-                                    onOpenControls = { page = CustomizePage.ControlsGroup },
-                                    onOpenLanguage = { page = CustomizePage.Language },
-                                    onOpenSystem = { page = CustomizePage.SystemGroup },
+                                    onOpenAppearance = { navigateForward(CustomizePage.AppearanceGroup) },
+                                    onOpenControls = { navigateForward(CustomizePage.ControlsGroup) },
+                                    onOpenLanguage = { navigateForward(CustomizePage.Language) },
+                                    onOpenSystem = { navigateForward(CustomizePage.SystemGroup) },
                                     onRefresh = onRefresh,
                                 )
                             }
                             CustomizePage.AppearanceGroup -> {
                                 AppearanceGroupPanel(
+                                    focusMemory = focusMemory,
                                     showWatchRow = showWatchRow,
                                     appColumns = appColumns,
                                     themePalette = themePalette,
@@ -339,29 +452,31 @@ fun CustomizeDialog(
                                     totalCount = apps.size,
                                     onToggleWatchRow = onToggleWatchRow,
                                     onSetAppColumns = onSetAppColumns,
-                                    onOpenThemeWallpaper = { page = CustomizePage.ThemeWallpaper },
-                                    onOpenSources = { page = CustomizePage.WatchSources },
+                                    onOpenThemeWallpaper = { navigateForward(CustomizePage.ThemeWallpaper) },
+                                    onOpenSources = { navigateForward(CustomizePage.WatchSources) },
                                     onBack = ::navigateBack,
                                 )
                             }
                             CustomizePage.ControlsGroup -> {
                                 ControlsGroupPanel(
+                                    focusMemory = focusMemory,
                                     backToAmbient = backToAmbient,
                                     autoLaunchTarget = autoLaunchTarget,
                                     apps = apps,
                                     tvInputs = tvInputs,
                                     onToggleBackToAmbient = onToggleBackToAmbient,
-                                    onOpenAutoLaunch = { page = CustomizePage.AutoLaunch },
-                                    onOpenRemoteButtons = { page = CustomizePage.RemoteButtonsList },
+                                    onOpenAutoLaunch = { navigateForward(CustomizePage.AutoLaunch) },
+                                    onOpenRemoteButtons = { navigateForward(CustomizePage.RemoteButtonsList) },
                                     onBack = ::navigateBack,
                                 )
                             }
                             CustomizePage.SystemGroup -> {
                                 SystemGroupPanel(
+                                    focusMemory = focusMemory,
                                     availableUpdateVersion = availableUpdateVersion,
-                                    onOpenAppUpdate = { page = CustomizePage.AppUpdate },
-                                    onOpenBackupRestore = { page = CustomizePage.BackupRestore },
-                                    onOpenAdvanced = { page = CustomizePage.AdvancedSettings },
+                                    onOpenAppUpdate = { navigateForward(CustomizePage.AppUpdate) },
+                                    onOpenBackupRestore = { navigateForward(CustomizePage.BackupRestore) },
+                                    onOpenAdvanced = { navigateForward(CustomizePage.AdvancedSettings) },
                                     onBack = ::navigateBack,
                                 )
                             }
@@ -370,13 +485,16 @@ fun CustomizeDialog(
                             }
                             CustomizePage.ThemeWallpaper -> {
                                 ThemeWallpaperPanel(
+                                    focusMemory = focusMemory,
                                     currentPalette = themePalette,
                                     dynamicAmbient = dynamicAmbientColor,
                                     hasCustomWallpaper = hasCustomWallpaper,
+                                    wallpaperDim = wallpaperDim,
                                     onSelectPalette = onSetThemePalette,
                                     onToggleDynamicAmbient = onSetDynamicAmbient,
-                                    onOpenLocalFile = { page = CustomizePage.WallpaperLocalFile },
-                                    onOpenUrl = { page = CustomizePage.WallpaperUrl },
+                                    onSetWallpaperDim = onSetWallpaperDim,
+                                    onOpenLocalFile = { navigateForward(CustomizePage.WallpaperLocalFile) },
+                                    onOpenUrl = { navigateForward(CustomizePage.WallpaperUrl) },
                                     onClearWallpaper = onClearWallpaper,
                                     onBack = ::navigateBack,
                                 )
@@ -384,6 +502,7 @@ fun CustomizeDialog(
                             CustomizePage.WallpaperLocalFile -> {
                                 val context = LocalContext.current
                                 WallpaperLocalFilePanel(
+                                    focusMemory = focusMemory,
                                     onSelectUri = { uri ->
                                         onSetWallpaperFromUri(uri) { ok ->
                                             Toast.makeText(
@@ -474,20 +593,23 @@ fun CustomizeDialog(
                             }
                             CustomizePage.RemoteButtonsList -> {
                                 RemoteButtonsPanel(
+                                    focusMemory = focusMemory,
                                     configs = remoteButtons,
                                     customMappings = customKeyMappings,
                                     apps = apps,
                                     overrideHomeKey = overrideHomeKey,
                                     onToggleOverrideHomeKey = onToggleOverrideHomeKey,
-                                    onSelectButton = { button -> page = CustomizePage.RemoteButtonDetail(button) },
+                                    onSelectButton = { button -> navigateForward(CustomizePage.RemoteButtonDetail(button)) },
                                     onSelectCustomMapping = { mapping ->
-                                        page = CustomizePage.CustomKeyDetail(
-                                            keyCode = mapping.keyCode,
-                                            scanCode = mapping.scanCode,
-                                            isNew = false,
+                                        navigateForward(
+                                            CustomizePage.CustomKeyDetail(
+                                                keyCode = mapping.keyCode,
+                                                scanCode = mapping.scanCode,
+                                                isNew = false,
+                                            ),
                                         )
                                     },
-                                    onAddCustomKey = { page = CustomizePage.CaptureNewCustomKey },
+                                    onAddCustomKey = { navigateForward(CustomizePage.CaptureNewCustomKey) },
                                     onBack = ::navigateBack,
                                 )
                             }
@@ -495,13 +617,15 @@ fun CustomizeDialog(
                                 val config = remoteButtons.firstOrNull { it.button == current.button }
                                     ?: RemoteButtonConfig(current.button)
                                 RemoteButtonDetailPanel(
+                                    pageKey = current,
+                                    focusMemory = focusMemory,
                                     config = config,
                                     apps = apps,
                                     onSelectTarget = { target ->
                                         onSetRemoteButtonTarget(current.button, target)
                                         page = CustomizePage.RemoteButtonsList
                                     },
-                                    onStartCaptureKey = { page = CustomizePage.CaptureKey(current.button) },
+                                    onStartCaptureKey = { navigateForward(CustomizePage.CaptureKey(current.button)) },
                                     onClearCustomKey = {
                                         onSetRemoteButtonCustomKey(current.button, 0, 0)
                                     },
@@ -576,6 +700,7 @@ fun CustomizeDialog(
 
 @Composable
 private fun MainCustomizePanel(
+    focusMemory: PanelFocusMemory,
     appColumns: Int,
     language: AppLanguage,
     themePalette: AppThemePalette,
@@ -588,10 +713,14 @@ private fun MainCustomizePanel(
     onRefresh: () -> Unit,
 ) {
     val context = LocalContext.current
-    val firstAction = remember { FocusRequester() }
+    val focusController = rememberPanelFocus(
+        pageKey = CustomizePage.Main,
+        memory = focusMemory,
+        fallbackFirstKey = "group_appearance",
+    )
     val versionName = remember(context) { AppUpdateManager.currentVersionName(context) }
     val hasUpdate = availableUpdateVersion.isNotBlank()
-    LaunchedEffect(Unit) { firstAction.requestFocusWhenReady() }
+    LaunchedEffect(Unit) { focusController.restoreFocus() }
 
     Column(Modifier.fillMaxSize()) {
         SheetHeader(
@@ -599,6 +728,7 @@ private fun MainCustomizePanel(
             subtitle = stringResource(R.string.customize_subtitle),
         )
         LazyColumn(
+            state = focusController.listState,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.weight(1f),
@@ -612,8 +742,11 @@ private fun MainCustomizePanel(
                         stringResource(themePalette.titleRes),
                         appColumns,
                     ),
-                    onClick = onOpenAppearance,
-                    modifier = Modifier.focusRequester(firstAction),
+                    onClick = {
+                        focusController.saveNow("group_appearance")
+                        onOpenAppearance()
+                    },
+                    modifier = focusController.modifierFor("group_appearance"),
                     showChevron = true,
                 )
             }
@@ -622,7 +755,11 @@ private fun MainCustomizePanel(
                     icon = Icons.Outlined.SettingsRemote,
                     title = stringResource(R.string.group_controls),
                     subtitle = stringResource(R.string.group_controls_subtitle),
-                    onClick = onOpenControls,
+                    onClick = {
+                        focusController.saveNow("group_controls")
+                        onOpenControls()
+                    },
+                    modifier = focusController.modifierFor("group_controls"),
                     showChevron = true,
                 )
             }
@@ -631,7 +768,11 @@ private fun MainCustomizePanel(
                     title = stringResource(R.string.group_language),
                     language = language,
                     onSetLanguage = onSetLanguage,
-                    onClick = onOpenLanguage,
+                    onClick = {
+                        focusController.saveNow("group_language")
+                        onOpenLanguage()
+                    },
+                    modifier = focusController.modifierFor("group_language"),
                 )
             }
             item(key = "group_system") {
@@ -643,7 +784,11 @@ private fun MainCustomizePanel(
                     } else {
                         stringResource(R.string.group_system_subtitle, versionName)
                     },
-                    onClick = onOpenSystem,
+                    onClick = {
+                        focusController.saveNow("group_system")
+                        onOpenSystem()
+                    },
+                    modifier = focusController.modifierFor("group_system"),
                     showChevron = !hasUpdate,
                     trailingContent = if (hasUpdate) {
                         { NewBadgeWithChevron() }
@@ -659,6 +804,7 @@ private fun MainCustomizePanel(
                         onRefresh()
                         Toast.makeText(context, context.getString(R.string.toast_refreshed), Toast.LENGTH_SHORT).show()
                     },
+                    modifier = focusController.modifierFor("refresh"),
                 )
             }
         }
@@ -667,6 +813,7 @@ private fun MainCustomizePanel(
 
 @Composable
 private fun AppearanceGroupPanel(
+    focusMemory: PanelFocusMemory,
     showWatchRow: Boolean,
     appColumns: Int,
     themePalette: AppThemePalette,
@@ -679,8 +826,12 @@ private fun AppearanceGroupPanel(
     onBack: () -> Unit,
 ) {
     BackHandler(onBack = onBack)
-    val firstItem = remember { FocusRequester() }
-    LaunchedEffect(Unit) { firstItem.requestFocusWhenReady() }
+    val focusController = rememberPanelFocus(
+        pageKey = CustomizePage.AppearanceGroup,
+        memory = focusMemory,
+        fallbackFirstKey = "theme_wallpaper",
+    )
+    LaunchedEffect(Unit) { focusController.restoreFocus() }
 
     Column(Modifier.fillMaxSize()) {
         SheetHeader(
@@ -689,6 +840,7 @@ private fun AppearanceGroupPanel(
             subtitle = stringResource(R.string.customize_theme_wallpaper_subtitle),
         )
         LazyColumn(
+            state = focusController.listState,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.weight(1f),
@@ -698,13 +850,20 @@ private fun AppearanceGroupPanel(
                     icon = Icons.Outlined.Palette,
                     title = stringResource(R.string.customize_theme_wallpaper),
                     subtitle = stringResource(themePalette.titleRes),
-                    onClick = onOpenThemeWallpaper,
-                    modifier = Modifier.focusRequester(firstItem),
+                    onClick = {
+                        focusController.saveNow("theme_wallpaper")
+                        onOpenThemeWallpaper()
+                    },
+                    modifier = focusController.modifierFor("theme_wallpaper"),
                     showChevron = true,
                 )
             }
             item(key = "app_columns") {
-                AppGridSizeItem(appColumns = appColumns, onSetAppColumns = onSetAppColumns)
+                AppGridSizeItem(
+                    appColumns = appColumns,
+                    onSetAppColumns = onSetAppColumns,
+                    modifier = focusController.modifierFor("app_columns"),
+                )
             }
             item(key = "show_watch_row") {
                 TvSettingsItem(
@@ -713,6 +872,7 @@ private fun AppearanceGroupPanel(
                     subtitle = if (showWatchRow) stringResource(R.string.customize_show_watch_row_on)
                     else stringResource(R.string.customize_show_watch_row_off),
                     onClick = { onToggleWatchRow(!showWatchRow) },
+                    modifier = focusController.modifierFor("show_watch_row"),
                     trailingContent = { TvSwitch(checked = showWatchRow) },
                 )
             }
@@ -721,7 +881,11 @@ private fun AppearanceGroupPanel(
                     icon = Icons.Outlined.VideoLibrary,
                     title = stringResource(R.string.customize_watch_sources),
                     subtitle = stringResource(R.string.customize_watch_sources_subtitle, enabledCount, totalCount),
-                    onClick = onOpenSources,
+                    onClick = {
+                        focusController.saveNow("watch_sources")
+                        onOpenSources()
+                    },
+                    modifier = focusController.modifierFor("watch_sources"),
                     showChevron = true,
                 )
             }
@@ -731,6 +895,7 @@ private fun AppearanceGroupPanel(
 
 @Composable
 private fun ControlsGroupPanel(
+    focusMemory: PanelFocusMemory,
     backToAmbient: Boolean,
     autoLaunchTarget: String,
     apps: List<LauncherApp>,
@@ -742,9 +907,13 @@ private fun ControlsGroupPanel(
 ) {
     BackHandler(onBack = onBack)
     val context = LocalContext.current
-    val firstItem = remember { FocusRequester() }
+    val focusController = rememberPanelFocus(
+        pageKey = CustomizePage.ControlsGroup,
+        memory = focusMemory,
+        fallbackFirstKey = "auto_launch",
+    )
     val appsByPkg = remember(apps) { apps.associateBy { it.packageName } }
-    LaunchedEffect(Unit) { firstItem.requestFocusWhenReady() }
+    LaunchedEffect(Unit) { focusController.restoreFocus() }
 
     Column(Modifier.fillMaxSize()) {
         SheetHeader(
@@ -753,6 +922,7 @@ private fun ControlsGroupPanel(
             subtitle = stringResource(R.string.group_controls_subtitle),
         )
         LazyColumn(
+            state = focusController.listState,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.weight(1f),
@@ -762,8 +932,11 @@ private fun ControlsGroupPanel(
                     icon = Icons.Outlined.PowerSettingsNew,
                     title = stringResource(R.string.customize_auto_launch),
                     subtitle = AutoLaunchManager.formatTargetLabel(context, autoLaunchTarget, appsByPkg, tvInputs),
-                    onClick = onOpenAutoLaunch,
-                    modifier = Modifier.focusRequester(firstItem),
+                    onClick = {
+                        focusController.saveNow("auto_launch")
+                        onOpenAutoLaunch()
+                    },
+                    modifier = focusController.modifierFor("auto_launch"),
                     showChevron = true,
                 )
             }
@@ -772,7 +945,11 @@ private fun ControlsGroupPanel(
                     icon = Icons.Outlined.SettingsRemote,
                     title = stringResource(R.string.customize_remote_buttons),
                     subtitle = stringResource(R.string.customize_remote_buttons_subtitle),
-                    onClick = onOpenRemoteButtons,
+                    onClick = {
+                        focusController.saveNow("remote_buttons")
+                        onOpenRemoteButtons()
+                    },
+                    modifier = focusController.modifierFor("remote_buttons"),
                     showChevron = true,
                 )
             }
@@ -783,6 +960,7 @@ private fun ControlsGroupPanel(
                     subtitle = if (backToAmbient) stringResource(R.string.customize_back_to_ambient_on)
                     else stringResource(R.string.customize_back_to_ambient_off),
                     onClick = { onToggleBackToAmbient(!backToAmbient) },
+                    modifier = focusController.modifierFor("back_to_ambient"),
                     trailingContent = { TvSwitch(checked = backToAmbient) },
                 )
             }
@@ -795,6 +973,7 @@ private const val ADVANCED_TAP_RESET_MS = 3_000L
 
 @Composable
 private fun SystemGroupPanel(
+    focusMemory: PanelFocusMemory,
     availableUpdateVersion: String,
     onOpenAppUpdate: () -> Unit,
     onOpenBackupRestore: () -> Unit,
@@ -804,7 +983,11 @@ private fun SystemGroupPanel(
     BackHandler(onBack = onBack)
     val context = LocalContext.current
     val prefs = remember(context) { LauncherPrefs(context) }
-    val firstItem = remember { FocusRequester() }
+    val focusController = rememberPanelFocus(
+        pageKey = CustomizePage.SystemGroup,
+        memory = focusMemory,
+        fallbackFirstKey = "version_info",
+    )
     val versionName = remember(context) { AppUpdateManager.currentVersionName(context) }
     val versionCode = remember(context) { AppUpdateManager.currentVersionCode(context) }
     val hasUpdate = availableUpdateVersion.isNotBlank()
@@ -844,7 +1027,7 @@ private fun SystemGroupPanel(
         }
     }
 
-    LaunchedEffect(Unit) { firstItem.requestFocusWhenReady() }
+    LaunchedEffect(Unit) { focusController.restoreFocus() }
 
     Column(Modifier.fillMaxSize()) {
         SheetHeader(
@@ -853,6 +1036,7 @@ private fun SystemGroupPanel(
             subtitle = stringResource(R.string.group_system_subtitle, versionName),
         )
         LazyColumn(
+            state = focusController.listState,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.weight(1f),
@@ -863,7 +1047,7 @@ private fun SystemGroupPanel(
                     title = stringResource(R.string.system_version_title),
                     subtitle = stringResource(R.string.system_version_subtitle, versionName, versionCode),
                     onClick = ::onVersionTapped,
-                    modifier = Modifier.focusRequester(firstItem),
+                    modifier = focusController.modifierFor("version_info"),
                 )
             }
             item(key = "check_update") {
@@ -875,7 +1059,11 @@ private fun SystemGroupPanel(
                     } else {
                         stringResource(R.string.update_check_now_subtitle)
                     },
-                    onClick = onOpenAppUpdate,
+                    onClick = {
+                        focusController.saveNow("check_update")
+                        onOpenAppUpdate()
+                    },
+                    modifier = focusController.modifierFor("check_update"),
                     showChevron = !hasUpdate,
                     trailingContent = if (hasUpdate) {
                         { NewBadgeWithChevron() }
@@ -887,7 +1075,11 @@ private fun SystemGroupPanel(
                     icon = Icons.Outlined.Backup,
                     title = stringResource(R.string.customize_backup_restore),
                     subtitle = stringResource(R.string.customize_backup_restore_subtitle),
-                    onClick = onOpenBackupRestore,
+                    onClick = {
+                        focusController.saveNow("backup_restore")
+                        onOpenBackupRestore()
+                    },
+                    modifier = focusController.modifierFor("backup_restore"),
                     showChevron = true,
                 )
             }
@@ -897,7 +1089,11 @@ private fun SystemGroupPanel(
                         icon = Icons.Outlined.Tune,
                         title = stringResource(R.string.advanced_title),
                         subtitle = stringResource(R.string.advanced_subtitle),
-                        onClick = onOpenAdvanced,
+                        onClick = {
+                            focusController.saveNow("advanced_settings")
+                            onOpenAdvanced()
+                        },
+                        modifier = focusController.modifierFor("advanced_settings"),
                         showChevron = true,
                     )
                 }
@@ -1341,11 +1537,14 @@ private fun AppUpdatePanel(
 
 @Composable
 private fun ThemeWallpaperPanel(
+    focusMemory: PanelFocusMemory,
     currentPalette: AppThemePalette,
     dynamicAmbient: Boolean,
     hasCustomWallpaper: Boolean,
+    wallpaperDim: Int,
     onSelectPalette: (AppThemePalette) -> Unit,
     onToggleDynamicAmbient: (Boolean) -> Unit,
+    onSetWallpaperDim: (Int) -> Unit,
     onOpenLocalFile: () -> Unit,
     onOpenUrl: () -> Unit,
     onClearWallpaper: () -> Unit,
@@ -1353,10 +1552,14 @@ private fun ThemeWallpaperPanel(
 ) {
     BackHandler(onBack = onBack)
     val context = LocalContext.current
-    val firstItem = remember { FocusRequester() }
     val palettes = AppThemePalette.entries
+    val focusController = rememberPanelFocus(
+        pageKey = CustomizePage.ThemeWallpaper,
+        memory = focusMemory,
+        fallbackFirstKey = palettes.firstOrNull()?.id,
+    )
 
-    LaunchedEffect(Unit) { firstItem.requestFocusWhenReady() }
+    LaunchedEffect(Unit) { focusController.restoreFocus() }
 
     Column(Modifier.fillMaxSize()) {
         SheetHeader(
@@ -1365,16 +1568,17 @@ private fun ThemeWallpaperPanel(
             subtitle = stringResource(R.string.customize_theme_wallpaper_subtitle),
         )
         LazyColumn(
+            state = focusController.listState,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.weight(1f),
         ) {
-            itemsIndexed(palettes, key = { _, p -> p.id }) { index, palette ->
+            itemsIndexed(palettes, key = { _, p -> p.id }) { _, palette ->
                 val selected = palette == currentPalette
                 ListItem(
                     selected = false,
                     onClick = { onSelectPalette(palette) },
-                    modifier = if (index == 0) Modifier.focusRequester(firstItem) else Modifier,
+                    modifier = focusController.modifierFor(palette.id),
                     leadingContent = {
                         Box(
                             contentAlignment = Alignment.Center,
@@ -1440,6 +1644,7 @@ private fun ThemeWallpaperPanel(
                     subtitle = if (dynamicAmbient) stringResource(R.string.customize_dynamic_ambient_on)
                     else stringResource(R.string.customize_dynamic_ambient_off),
                     onClick = { onToggleDynamicAmbient(!dynamicAmbient) },
+                    modifier = focusController.modifierFor("dynamic_ambient"),
                     trailingContent = {
                         TvSwitch(checked = dynamicAmbient)
                     },
@@ -1450,7 +1655,11 @@ private fun ThemeWallpaperPanel(
                     icon = Icons.Outlined.FolderOpen,
                     title = stringResource(R.string.wallpaper_from_file),
                     subtitle = stringResource(R.string.wallpaper_from_file_subtitle),
-                    onClick = onOpenLocalFile,
+                    onClick = {
+                        focusController.saveNow("wallpaper_file")
+                        onOpenLocalFile()
+                    },
+                    modifier = focusController.modifierFor("wallpaper_file"),
                     showChevron = true,
                 )
             }
@@ -1459,8 +1668,38 @@ private fun ThemeWallpaperPanel(
                     icon = Icons.Outlined.Link,
                     title = stringResource(R.string.wallpaper_from_url),
                     subtitle = stringResource(R.string.wallpaper_from_url_subtitle),
-                    onClick = onOpenUrl,
+                    onClick = {
+                        focusController.saveNow("wallpaper_url")
+                        onOpenUrl()
+                    },
+                    modifier = focusController.modifierFor("wallpaper_url"),
                     showChevron = true,
+                )
+            }
+            item(key = "wallpaper_dim") {
+                WallpaperDimSliderItem(
+                    dimPercent = wallpaperDim,
+                    onChange = onSetWallpaperDim,
+                    modifier = focusController.modifierFor("wallpaper_dim"),
+                )
+            }
+            item(key = "wallpaper_dim_reset") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.Restore,
+                    title = stringResource(R.string.wallpaper_dim_reset),
+                    subtitle = stringResource(
+                        R.string.wallpaper_dim_reset_subtitle,
+                        LauncherPrefs.DEFAULT_WALLPAPER_DIM,
+                    ),
+                    onClick = {
+                        onSetWallpaperDim(LauncherPrefs.DEFAULT_WALLPAPER_DIM)
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.toast_wallpaper_dim_reset, LauncherPrefs.DEFAULT_WALLPAPER_DIM),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    },
+                    modifier = focusController.modifierFor("wallpaper_dim_reset"),
                 )
             }
             if (hasCustomWallpaper) {
@@ -1477,6 +1716,7 @@ private fun ThemeWallpaperPanel(
                                 Toast.LENGTH_SHORT,
                             ).show()
                         },
+                        modifier = focusController.modifierFor("wallpaper_clear"),
                         danger = true,
                     )
                 }
@@ -1486,14 +1726,150 @@ private fun ThemeWallpaperPanel(
 }
 
 @Composable
+private fun WallpaperDimSliderItem(
+    dimPercent: Int,
+    onChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val clamped = dimPercent.coerceIn(0, 100)
+    val fraction = clamped / 100f
+
+    ListItem(
+        selected = false,
+        onClick = {
+            val next = if (clamped >= 100) 0 else ((clamped + 10) / 10) * 10
+            onChange(next.coerceIn(0, 100))
+        },
+        modifier = modifier.onPreviewKeyEvent { event ->
+            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+            when (event.nativeKeyEvent.keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    onChange((clamped - 5).coerceIn(0, 100))
+                    true
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    onChange((clamped + 5).coerceIn(0, 100))
+                    true
+                }
+                else -> false
+            }
+        },
+        leadingContent = {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(34.dp)
+                    .background(ToolkitColors.OnSurface.copy(alpha = 0.08f), IconBoxShape),
+            ) {
+                Icon(
+                    Icons.Outlined.Brightness6,
+                    contentDescription = null,
+                    tint = ToolkitColors.Accent,
+                    modifier = Modifier.size(19.dp),
+                )
+            }
+        },
+        headlineContent = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    stringResource(R.string.wallpaper_dim_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .background(ToolkitColors.Accent, RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                ) {
+                    Text(
+                        "$clamped%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = ToolkitColors.Background,
+                    )
+                }
+            }
+        },
+        supportingContent = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(top = 6.dp),
+            ) {
+                Box(
+                    contentAlignment = Alignment.CenterStart,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(14.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(ToolkitColors.OnSurface.copy(alpha = 0.16f)),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(fraction.coerceAtLeast(0.001f))
+                                .fillMaxHeight()
+                                .background(
+                                    if (clamped > 0) ToolkitColors.Accent else Color.Transparent,
+                                    RoundedCornerShape(3.dp),
+                                ),
+                        )
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        if (fraction > 0f) {
+                            Spacer(Modifier.weight(fraction))
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(14.dp)
+                                .background(ToolkitColors.OnSurface, CircleShape)
+                                .border(2.dp, ToolkitColors.Accent, CircleShape),
+                        )
+                        if (fraction < 1f) {
+                            Spacer(Modifier.weight(1f - fraction))
+                        }
+                    }
+                }
+                Text(
+                    stringResource(R.string.wallpaper_dim_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        },
+        shape = ListItemDefaults.shape(ItemShape),
+        scale = ListItemDefaults.scale(focusedScale = 1.02f),
+        colors = ListItemDefaults.colors(
+            containerColor = Color.Transparent,
+            contentColor = ToolkitColors.OnSurface.copy(alpha = 0.78f),
+            focusedContainerColor = ToolkitColors.OnSurface.copy(alpha = 0.14f),
+            focusedContentColor = ToolkitColors.OnSurface,
+        ),
+    )
+}
+
+@Composable
 private fun WallpaperLocalFilePanel(
+    focusMemory: PanelFocusMemory,
     onSelectUri: (Uri) -> Unit,
     onSelectFile: (File) -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val firstItem = remember { FocusRequester() }
     var hasMediaPerm by remember { mutableStateOf(WallpaperStore.hasMediaPermission(context)) }
     var hasAllFiles by remember { mutableStateOf(WallpaperStore.hasAllFilesAccess()) }
     var allImages by remember { mutableStateOf<List<LocalImageEntry>>(emptyList()) }
@@ -1501,6 +1877,26 @@ private fun WallpaperLocalFilePanel(
     var currentFolder by remember { mutableStateOf<File?>(null) }
     var folderState by remember { mutableStateOf<FolderBrowserState?>(null) }
     var scanTrigger by remember { mutableIntStateOf(0) }
+
+    val activeFolder = currentFolder
+    val browseKey = activeFolder?.let { "local_dir:${it.absolutePath}" } ?: "local_roots"
+    val fallbackKey = remember(activeFolder, hasMediaPerm, hasAllFiles, quickFolders) {
+        if (activeFolder != null) {
+            "folder_back_roots"
+        } else {
+            when {
+                !hasMediaPerm -> "grant_media_perm"
+                !hasAllFiles -> "grant_all_files"
+                quickFolders.isNotEmpty() -> "qfolder_${quickFolders.first().second.absolutePath}"
+                else -> "rescan_storage"
+            }
+        }
+    }
+    val focusController = rememberPanelFocus(
+        pageKey = browseKey,
+        memory = focusMemory,
+        fallbackFirstKey = fallbackKey,
+    )
 
     val handleBack = {
         val browsing = currentFolder
@@ -1539,7 +1935,6 @@ private fun WallpaperLocalFilePanel(
     }
 
     LaunchedEffect(Unit) {
-        firstItem.requestFocusWhenReady()
         if (!WallpaperStore.hasMediaPermission(context)) {
             runCatching { permissionLauncher.launch(WallpaperStore.requiredPermissions()) }
         }
@@ -1562,6 +1957,16 @@ private fun WallpaperLocalFilePanel(
         }
     }
 
+    var lastRestoredKey by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(browseKey, folderState) {
+        if (lastRestoredKey == browseKey) return@LaunchedEffect
+        val target = currentFolder
+        if (target == null || folderState?.currentDir?.absolutePath == target.absolutePath) {
+            focusController.restoreFocus()
+            lastRestoredKey = browseKey
+        }
+    }
+
     fun selectEntry(entry: LocalImageEntry) {
         val file = entry.file?.takeIf { it.exists() && it.canRead() }
         if (file != null) {
@@ -1573,14 +1978,20 @@ private fun WallpaperLocalFilePanel(
         }
     }
 
+    fun openSubfolder(itemKey: String, dir: File) {
+        focusController.saveNow(itemKey)
+        focusMemory.clear("local_dir:${dir.absolutePath}")
+        currentFolder = dir
+    }
+
     Column(Modifier.fillMaxSize()) {
-        val activeFolder = currentFolder
         SheetHeader(
             breadcrumb = stringResource(R.string.customize_theme_wallpaper),
             title = activeFolder?.name?.takeIf { it.isNotBlank() } ?: stringResource(R.string.wallpaper_from_file),
             subtitle = activeFolder?.absolutePath ?: stringResource(R.string.wallpaper_from_file_subtitle),
         )
         LazyColumn(
+            state = focusController.listState,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.weight(1f),
@@ -1593,12 +2004,13 @@ private fun WallpaperLocalFilePanel(
                         title = stringResource(R.string.wallpaper_folder_back_roots),
                         subtitle = stringResource(R.string.wallpaper_folder_back_roots_subtitle),
                         onClick = { currentFolder = null },
-                        modifier = Modifier.focusRequester(firstItem),
+                        modifier = focusController.modifierFor("folder_back_roots"),
                     )
                 }
                 val parent = state?.parentDir
                 if (parent != null) {
-                    item(key = "folder_up_${parent.absolutePath}") {
+                    val parentItemKey = "folder_up_${parent.absolutePath}"
+                    item(key = parentItemKey) {
                         TvSettingsItem(
                             icon = Icons.Outlined.FolderOpen,
                             title = stringResource(R.string.wallpaper_folder_up),
@@ -1607,6 +2019,7 @@ private fun WallpaperLocalFilePanel(
                                 parent.name.ifBlank { parent.absolutePath },
                             ),
                             onClick = { currentFolder = parent },
+                            modifier = focusController.modifierFor(parentItemKey),
                         )
                     }
                 }
@@ -1622,11 +2035,13 @@ private fun WallpaperLocalFilePanel(
                         }
                     } else {
                         itemsIndexed(state.directories, key = { _, d -> "dir_${d.absolutePath}" }) { _, subDir ->
+                            val dirKey = "dir_${subDir.absolutePath}"
                             TvSettingsItem(
                                 icon = Icons.Outlined.FolderOpen,
                                 title = subDir.name,
                                 subtitle = stringResource(R.string.wallpaper_folder_item_subtitle, subDir.absolutePath),
-                                onClick = { currentFolder = subDir },
+                                onClick = { openSubfolder(dirKey, subDir) },
+                                modifier = focusController.modifierFor(dirKey),
                                 showChevron = true,
                             )
                         }
@@ -1634,20 +2049,12 @@ private fun WallpaperLocalFilePanel(
                             LocalImagePickerItem(
                                 entry = entry,
                                 onClick = { selectEntry(entry) },
+                                modifier = focusController.modifierFor(entry.id),
                             )
                         }
                     }
                 }
             } else {
-                var focusAssigned = false
-                fun nextFocusModifier(): Modifier =
-                    if (!focusAssigned) {
-                        focusAssigned = true
-                        Modifier.focusRequester(firstItem)
-                    } else {
-                        Modifier
-                    }
-
                 if (!hasMediaPerm) {
                     item(key = "grant_media_perm") {
                         TvSettingsItem(
@@ -1661,7 +2068,7 @@ private fun WallpaperLocalFilePanel(
                                     WallpaperStore.openAllFilesAccessSettings(context)
                                 }
                             },
-                            modifier = nextFocusModifier(),
+                            modifier = focusController.modifierFor("grant_media_perm"),
                             showChevron = true,
                         )
                     }
@@ -1674,7 +2081,7 @@ private fun WallpaperLocalFilePanel(
                             title = stringResource(R.string.wallpaper_all_files_title),
                             subtitle = stringResource(R.string.wallpaper_all_files_subtitle),
                             onClick = { WallpaperStore.openAllFilesAccessSettings(context) },
-                            modifier = nextFocusModifier(),
+                            modifier = focusController.modifierFor("grant_all_files"),
                             showChevron = true,
                         )
                     }
@@ -1690,12 +2097,13 @@ private fun WallpaperLocalFilePanel(
                         )
                     }
                     itemsIndexed(quickFolders, key = { _, pair -> "qfolder_${pair.second.absolutePath}" }) { _, (label, dir) ->
+                        val qKey = "qfolder_${dir.absolutePath}"
                         TvSettingsItem(
                             icon = Icons.Outlined.FolderOpen,
                             title = label,
                             subtitle = dir.absolutePath,
-                            onClick = { currentFolder = dir },
-                            modifier = nextFocusModifier(),
+                            onClick = { openSubfolder(qKey, dir) },
+                            modifier = focusController.modifierFor(qKey),
                             showChevron = true,
                         )
                     }
@@ -1716,7 +2124,7 @@ private fun WallpaperLocalFilePanel(
                         title = stringResource(R.string.wallpaper_rescan),
                         subtitle = stringResource(R.string.wallpaper_rescan_subtitle),
                         onClick = { scanTrigger++ },
-                        modifier = nextFocusModifier(),
+                        modifier = focusController.modifierFor("rescan_storage"),
                     )
                 }
 
@@ -1734,6 +2142,7 @@ private fun WallpaperLocalFilePanel(
                         LocalImagePickerItem(
                             entry = entry,
                             onClick = { selectEntry(entry) },
+                            modifier = focusController.modifierFor(entry.id),
                         )
                     }
                 }
@@ -2139,6 +2548,7 @@ private fun LanguagePanel(
 
 @Composable
 private fun RemoteButtonsPanel(
+    focusMemory: PanelFocusMemory,
     configs: List<RemoteButtonConfig>,
     customMappings: List<CustomKeyMapping>,
     apps: List<LauncherApp>,
@@ -2151,11 +2561,15 @@ private fun RemoteButtonsPanel(
 ) {
     BackHandler(onBack = onBack)
     val context = LocalContext.current
-    val firstItem = remember { FocusRequester() }
+    val focusController = rememberPanelFocus(
+        pageKey = CustomizePage.RemoteButtonsList,
+        memory = focusMemory,
+        fallbackFirstKey = "accessibility_status",
+    )
     val appsByPkg = remember(apps) { apps.associateBy { it.packageName } }
     val accessibilityEnabled = ToolkitAccessibilityService.instance != null
 
-    LaunchedEffect(Unit) { firstItem.requestFocusWhenReady() }
+    LaunchedEffect(Unit) { focusController.restoreFocus() }
 
     Column(Modifier.fillMaxSize()) {
         SheetHeader(
@@ -2164,6 +2578,7 @@ private fun RemoteButtonsPanel(
             subtitle = stringResource(R.string.customize_remote_buttons_panel_subtitle),
         )
         LazyColumn(
+            state = focusController.listState,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.weight(1f),
@@ -2176,7 +2591,7 @@ private fun RemoteButtonsPanel(
                     subtitle = if (accessibilityEnabled) stringResource(R.string.remote_accessibility_on_subtitle)
                     else stringResource(R.string.remote_accessibility_off_subtitle),
                     onClick = { RemoteButtons.openAccessibilitySettings(context) },
-                    modifier = Modifier.focusRequester(firstItem),
+                    modifier = focusController.modifierFor("accessibility_status"),
                     trailingContent = {
                         val badgeShape = RoundedCornerShape(6.dp)
                         Box(
@@ -2206,6 +2621,7 @@ private fun RemoteButtonsPanel(
                     subtitle = if (overrideHomeKey) stringResource(R.string.remote_override_home_on)
                     else stringResource(R.string.remote_override_home_off),
                     onClick = { onToggleOverrideHomeKey(!overrideHomeKey) },
+                    modifier = focusController.modifierFor("override_home"),
                     trailingContent = {
                         TvSwitch(checked = overrideHomeKey)
                     },
@@ -2233,7 +2649,11 @@ private fun RemoteButtonsPanel(
                     appIcon = assignedApp?.icon,
                     title = stringResource(cfg.button.titleRes),
                     subtitle = targetLabel + customKeyText,
-                    onClick = { onSelectButton(cfg.button) },
+                    onClick = {
+                        focusController.saveNow(cfg.button.id)
+                        onSelectButton(cfg.button)
+                    },
+                    modifier = focusController.modifierFor(cfg.button.id),
                     showChevron = true,
                 )
             }
@@ -2241,12 +2661,17 @@ private fun RemoteButtonsPanel(
             itemsIndexed(customMappings, key = { _, mapping -> "custom_${mapping.id}" }) { _, mapping ->
                 val assignedApp = appsByPkg[mapping.target]
                 val keyName = RemoteButtons.formatKeyLabel(mapping.keyCode, mapping.scanCode)
+                val mappingKey = "custom_${mapping.id}"
                 TvSettingsItem(
                     icon = Icons.Outlined.Keyboard,
                     appIcon = assignedApp?.icon,
                     title = stringResource(R.string.remote_custom_key_item_title, keyName),
                     subtitle = RemoteButtons.formatCustomTargetLabel(context, mapping.target, appsByPkg),
-                    onClick = { onSelectCustomMapping(mapping) },
+                    onClick = {
+                        focusController.saveNow(mappingKey)
+                        onSelectCustomMapping(mapping)
+                    },
+                    modifier = focusController.modifierFor(mappingKey),
                     showChevron = true,
                 )
             }
@@ -2256,7 +2681,11 @@ private fun RemoteButtonsPanel(
                     icon = Icons.Outlined.AddCircleOutline,
                     title = stringResource(R.string.remote_add_custom_key),
                     subtitle = stringResource(R.string.remote_add_custom_key_subtitle),
-                    onClick = onAddCustomKey,
+                    onClick = {
+                        focusController.saveNow("add_custom_key")
+                        onAddCustomKey()
+                    },
+                    modifier = focusController.modifierFor("add_custom_key"),
                     showChevron = true,
                 )
             }
@@ -2363,6 +2792,8 @@ private fun CustomKeyDetailPanel(
 
 @Composable
 private fun RemoteButtonDetailPanel(
+    pageKey: CustomizePage.RemoteButtonDetail,
+    focusMemory: PanelFocusMemory,
     config: RemoteButtonConfig,
     apps: List<LauncherApp>,
     onSelectTarget: (String) -> Unit,
@@ -2372,12 +2803,16 @@ private fun RemoteButtonDetailPanel(
 ) {
     BackHandler(onBack = onBack)
     val context = LocalContext.current
-    val firstItem = remember { FocusRequester() }
+    val focusController = rememberPanelFocus(
+        pageKey = pageKey,
+        memory = focusMemory,
+        fallbackFirstKey = "action_default",
+    )
     val sortedApps = remember(apps) { apps.sortedBy { it.label.lowercase() } }
     val hasCustomKey = config.customKeyCode > 0 || config.customScanCode > 0
     val buttonTitle = stringResource(config.button.titleRes)
 
-    LaunchedEffect(Unit) { firstItem.requestFocusWhenReady() }
+    LaunchedEffect(Unit) { focusController.restoreFocus() }
 
     Column(Modifier.fillMaxSize()) {
         SheetHeader(
@@ -2386,6 +2821,7 @@ private fun RemoteButtonDetailPanel(
             subtitle = stringResource(R.string.remote_detail_subtitle),
         )
         LazyColumn(
+            state = focusController.listState,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.weight(1f),
@@ -2399,7 +2835,7 @@ private fun RemoteButtonDetailPanel(
                     else stringResource(R.string.remote_detail_default_subtitle),
                     selected = selected,
                     onClick = { onSelectTarget(RemoteButtons.TARGET_DEFAULT) },
-                    modifier = Modifier.focusRequester(firstItem),
+                    modifier = focusController.modifierFor("action_default"),
                 )
             }
             item(key = "action_learn_key") {
@@ -2414,7 +2850,11 @@ private fun RemoteButtonDetailPanel(
                     } else {
                         stringResource(R.string.remote_learn_key_subtitle)
                     },
-                    onClick = onStartCaptureKey,
+                    onClick = {
+                        focusController.saveNow("action_learn_key")
+                        onStartCaptureKey()
+                    },
+                    modifier = focusController.modifierFor("action_learn_key"),
                     showChevron = true,
                 )
             }
@@ -2432,6 +2872,7 @@ private fun RemoteButtonDetailPanel(
                                 Toast.LENGTH_SHORT,
                             ).show()
                         },
+                        modifier = focusController.modifierFor("action_clear_key"),
                     )
                 }
             }
@@ -2444,6 +2885,7 @@ private fun RemoteButtonDetailPanel(
                     else stringResource(R.string.remote_disable_button_subtitle),
                     selected = selected,
                     onClick = { onSelectTarget(RemoteButtons.TARGET_DISABLED) },
+                    modifier = focusController.modifierFor("action_disabled"),
                 )
             }
             itemsIndexed(sortedApps, key = { _, app -> app.packageName }) { _, app ->
@@ -2455,6 +2897,7 @@ private fun RemoteButtonDetailPanel(
                     else app.packageName,
                     selected = selected,
                     onClick = { onSelectTarget(app.packageName) },
+                    modifier = focusController.modifierFor(app.packageName),
                 )
             }
         }

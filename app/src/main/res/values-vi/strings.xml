@@ -138,6 +138,11 @@
     <string name="wallpaper_folder_item_subtitle">Mở thư mục · %1$s</string>
     <string name="wallpaper_rescan">Quét lại bộ nhớ</string>
     <string name="wallpaper_rescan_subtitle">Làm mới danh sách ảnh từ Download, Pictures, DCIM và USB</string>
+    <string name="wallpaper_dim_title">Độ tối lớp phủ hình nền</string>
+    <string name="wallpaper_dim_hint">Bấm ◀ / ▶ để điều chỉnh (0%%–100%%)</string>
+    <string name="wallpaper_dim_reset">Đặt lại độ tối hình nền</string>
+    <string name="wallpaper_dim_reset_subtitle">Khôi phục mức mặc định (%1$d%%)</string>
+    <string name="toast_wallpaper_dim_reset">Đã đặt lại độ tối hình nền về %1$d%%</string>
     <string name="wallpaper_clear">Xóa hình nền tùy chỉnh</string>
     <string name="wallpaper_clear_subtitle">Khôi phục lại nền bảng màu mặc định</string>
     <string name="toast_wallpaper_applied">Đã cập nhật hình nền</string>

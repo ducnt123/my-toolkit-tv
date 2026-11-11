@@ -35,12 +35,21 @@ fun Modifier.ignoreHeldSelectKey(): Modifier {
 
 /**
  * Requests focus, retrying for a few frames while the target (e.g. a lazy grid item or dialog
+ * content) is still being laid out. Returns true if focus was granted.
+ */
+suspend fun FocusRequester.tryRequestFocusWhenReady(maxFrames: Int = 10): Boolean {
+    repeat(maxFrames) {
+        val granted = runCatching { requestFocus(FocusDirection.Enter) }.getOrDefault(false)
+        if (granted) return true
+        withFrameNanos { }
+    }
+    return false
+}
+
+/**
+ * Requests focus, retrying for a few frames while the target (e.g. a lazy grid item or dialog
  * content) is still being laid out.
  */
 suspend fun FocusRequester.requestFocusWhenReady(maxFrames: Int = 10) {
-    repeat(maxFrames) {
-        val granted = runCatching { requestFocus(FocusDirection.Enter) }.getOrDefault(false)
-        if (granted) return
-        withFrameNanos { }
-    }
+    tryRequestFocusWhenReady(maxFrames)
 }

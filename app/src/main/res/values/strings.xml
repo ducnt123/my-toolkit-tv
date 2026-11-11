@@ -138,6 +138,11 @@
     <string name="wallpaper_folder_item_subtitle">Open folder · %1$s</string>
     <string name="wallpaper_rescan">Rescan storage</string>
     <string name="wallpaper_rescan_subtitle">Refresh images from Download, Pictures, DCIM, and USB</string>
+    <string name="wallpaper_dim_title">Wallpaper dim overlay</string>
+    <string name="wallpaper_dim_hint">Press ◀ / ▶ to adjust (0%%–100%%)</string>
+    <string name="wallpaper_dim_reset">Reset wallpaper dim</string>
+    <string name="wallpaper_dim_reset_subtitle">Restore default darkness (%1$d%%)</string>
+    <string name="toast_wallpaper_dim_reset">Wallpaper dim reset to %1$d%%</string>
     <string name="wallpaper_clear">Remove custom wallpaper</string>
     <string name="wallpaper_clear_subtitle">Restore default theme background</string>
     <string name="toast_wallpaper_applied">Wallpaper updated</string>

@@ -97,6 +97,12 @@ class LauncherPrefs(context: Context) {
         prefs.edit { putBoolean(KEY_DYNAMIC_AMBIENT, enabled) }
     }
 
+    fun wallpaperDim(): Int = prefs.getInt(KEY_WALLPAPER_DIM, DEFAULT_WALLPAPER_DIM).coerceIn(0, 100)
+
+    fun setWallpaperDim(dim: Int) {
+        prefs.edit { putInt(KEY_WALLPAPER_DIM, dim.coerceIn(0, 100)) }
+    }
+
     fun autoLaunchTarget(): String = prefs.getString(KEY_AUTO_LAUNCH_TARGET, "").orEmpty()
 
     fun setAutoLaunchTarget(target: String) {
@@ -291,6 +297,7 @@ class LauncherPrefs(context: Context) {
         root.put(KEY_LANGUAGE, language())
         root.put(KEY_THEME_PALETTE, themePalette().id)
         root.put(KEY_DYNAMIC_AMBIENT, isDynamicAmbientEnabled())
+        root.put(KEY_WALLPAPER_DIM, wallpaperDim())
         root.put(KEY_AUTO_LAUNCH_TARGET, autoLaunchTarget())
         root.put(KEY_AUTO_LAUNCH_BOOT, isAutoLaunchOnBootEnabled())
         root.put(KEY_AUTO_LAUNCH_WAKE, isAutoLaunchOnWakeEnabled())
@@ -344,6 +351,7 @@ class LauncherPrefs(context: Context) {
             if (root.has(KEY_LANGUAGE)) putString(KEY_LANGUAGE, AppLanguage.fromCode(root.optString(KEY_LANGUAGE)).code)
             if (root.has(KEY_THEME_PALETTE)) putString(KEY_THEME_PALETTE, AppThemePalette.fromId(root.optString(KEY_THEME_PALETTE)).id)
             if (root.has(KEY_DYNAMIC_AMBIENT)) putBoolean(KEY_DYNAMIC_AMBIENT, root.optBoolean(KEY_DYNAMIC_AMBIENT, false))
+            if (root.has(KEY_WALLPAPER_DIM)) putInt(KEY_WALLPAPER_DIM, root.optInt(KEY_WALLPAPER_DIM, DEFAULT_WALLPAPER_DIM).coerceIn(0, 100))
             if (root.has(KEY_AUTO_LAUNCH_TARGET)) putString(KEY_AUTO_LAUNCH_TARGET, root.optString(KEY_AUTO_LAUNCH_TARGET, ""))
             if (root.has(KEY_AUTO_LAUNCH_BOOT)) putBoolean(KEY_AUTO_LAUNCH_BOOT, root.optBoolean(KEY_AUTO_LAUNCH_BOOT, true))
             if (root.has(KEY_AUTO_LAUNCH_WAKE)) putBoolean(KEY_AUTO_LAUNCH_WAKE, root.optBoolean(KEY_AUTO_LAUNCH_WAKE, true))
@@ -371,30 +379,32 @@ class LauncherPrefs(context: Context) {
     private fun JSONArray.toStringList(): List<String> =
         (0 until length()).mapNotNull { idx -> optString(idx)?.takeIf { it.isNotBlank() } }
 
-    private companion object {
-        const val KEY_ORDER = "order"
-        const val KEY_HIDDEN = "hidden"
-        const val KEY_UNHIDDEN_NON_TV = "unhidden_non_tv"
-        const val KEY_REMOVED_WATCH = "removed_watch"
-        const val KEY_WATCH_ORDER = "watch_order"
-        const val KEY_SHOW_WATCH_ROW = "show_watch_row"
-        const val KEY_DISABLED_WATCH_PKGS = "disabled_watch_pkgs"
-        const val KEY_APP_COLUMNS = "app_columns"
-        const val KEY_BACK_TO_AMBIENT = "back_to_ambient"
-        const val KEY_LANGUAGE = "language"
-        const val KEY_THEME_PALETTE = "theme_palette"
-        const val KEY_DYNAMIC_AMBIENT = "dynamic_ambient"
-        const val KEY_AUTO_LAUNCH_TARGET = "auto_launch_target"
-        const val KEY_AUTO_LAUNCH_BOOT = "auto_launch_boot"
-        const val KEY_AUTO_LAUNCH_WAKE = "auto_launch_wake"
-        const val KEY_UPDATE_CHECK_INTERVAL = "update_check_interval"
-        const val KEY_LAST_UPDATE_CHECK_MS = "last_update_check_ms"
-        const val KEY_AVAILABLE_UPDATE_VERSION = "available_update_version"
-        const val KEY_OVERRIDE_HOME = "override_home"
-        const val KEY_ADVANCED_VISIBLE = "advanced_settings_visible"
-        const val KEY_REMOTE_TARGET_PREFIX = "remote_target_"
-        const val KEY_REMOTE_KEYCODE_PREFIX = "remote_keycode_"
-        const val KEY_REMOTE_SCANCODE_PREFIX = "remote_scancode_"
-        const val KEY_CUSTOM_REMOTE_KEYS = "custom_remote_keys"
+    companion object {
+        const val DEFAULT_WALLPAPER_DIM = 45
+        private const val KEY_ORDER = "order"
+        private const val KEY_HIDDEN = "hidden"
+        private const val KEY_UNHIDDEN_NON_TV = "unhidden_non_tv"
+        private const val KEY_REMOVED_WATCH = "removed_watch"
+        private const val KEY_WATCH_ORDER = "watch_order"
+        private const val KEY_SHOW_WATCH_ROW = "show_watch_row"
+        private const val KEY_DISABLED_WATCH_PKGS = "disabled_watch_pkgs"
+        private const val KEY_APP_COLUMNS = "app_columns"
+        private const val KEY_BACK_TO_AMBIENT = "back_to_ambient"
+        private const val KEY_LANGUAGE = "language"
+        private const val KEY_THEME_PALETTE = "theme_palette"
+        private const val KEY_DYNAMIC_AMBIENT = "dynamic_ambient"
+        private const val KEY_WALLPAPER_DIM = "wallpaper_dim"
+        private const val KEY_AUTO_LAUNCH_TARGET = "auto_launch_target"
+        private const val KEY_AUTO_LAUNCH_BOOT = "auto_launch_boot"
+        private const val KEY_AUTO_LAUNCH_WAKE = "auto_launch_wake"
+        private const val KEY_UPDATE_CHECK_INTERVAL = "update_check_interval"
+        private const val KEY_LAST_UPDATE_CHECK_MS = "last_update_check_ms"
+        private const val KEY_AVAILABLE_UPDATE_VERSION = "available_update_version"
+        private const val KEY_OVERRIDE_HOME = "override_home"
+        private const val KEY_ADVANCED_VISIBLE = "advanced_settings_visible"
+        private const val KEY_REMOTE_TARGET_PREFIX = "remote_target_"
+        private const val KEY_REMOTE_KEYCODE_PREFIX = "remote_keycode_"
+        private const val KEY_REMOTE_SCANCODE_PREFIX = "remote_scancode_"
+        private const val KEY_CUSTOM_REMOTE_KEYS = "custom_remote_keys"
     }
 }

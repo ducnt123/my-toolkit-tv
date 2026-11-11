@@ -2,7 +2,9 @@ package com.tk.toolkit.tv.launcher.data
 
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.res.AssetManager
 import android.content.res.Configuration
+import android.content.res.Resources
 import android.os.LocaleList
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
@@ -60,7 +62,11 @@ object LocaleHelper {
         val config = Configuration(base.resources.configuration)
         config.setLocale(locale)
         config.setLocales(localeList)
-        return ContextWrapper(base.createConfigurationContext(config))
+        val configContext = base.createConfigurationContext(config)
+        return object : ContextWrapper(base) {
+            override fun getResources(): Resources = configContext.resources
+            override fun getAssets(): AssetManager = configContext.assets
+        }
     }
 
     /**

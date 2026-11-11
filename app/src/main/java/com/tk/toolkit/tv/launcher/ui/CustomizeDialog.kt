@@ -93,8 +93,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -120,8 +124,10 @@ import com.tk.toolkit.tv.launcher.data.AppUpdateManager
 import com.tk.toolkit.tv.launcher.data.AutoLaunchManager
 import com.tk.toolkit.tv.launcher.data.BackupManager
 import com.tk.toolkit.tv.launcher.data.CustomKeyMapping
+import com.tk.toolkit.tv.launcher.data.FolderBrowserState
 import com.tk.toolkit.tv.launcher.data.InstallOutcome
 import com.tk.toolkit.tv.launcher.data.LauncherApp
+import com.tk.toolkit.tv.launcher.data.LocalImageEntry
 import com.tk.toolkit.tv.launcher.data.LocaleHelper
 import com.tk.toolkit.tv.launcher.data.ReleaseInfo
 import com.tk.toolkit.tv.launcher.data.RemoteButton
@@ -1212,67 +1218,329 @@ private fun WallpaperLocalFilePanel(
     onSelectFile: (File) -> Unit,
     onBack: () -> Unit,
 ) {
-    BackHandler(onBack = onBack)
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val firstItem = remember { FocusRequester() }
-    var localFiles by remember { mutableStateOf<List<File>>(emptyList()) }
-    val documentLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        if (uri != null) onSelectUri(uri)
+    var hasMediaPerm by remember { mutableStateOf(WallpaperStore.hasMediaPermission(context)) }
+    var hasAllFiles by remember { mutableStateOf(WallpaperStore.hasAllFilesAccess()) }
+    var allImages by remember { mutableStateOf<List<LocalImageEntry>>(emptyList()) }
+    var quickFolders by remember { mutableStateOf<List<Pair<String, File>>>(emptyList()) }
+    var currentFolder by remember { mutableStateOf<File?>(null) }
+    var folderState by remember { mutableStateOf<FolderBrowserState?>(null) }
+    var scanTrigger by remember { mutableIntStateOf(0) }
+
+    val handleBack = {
+        val browsing = currentFolder
+        if (browsing != null) {
+            val isQuickRoot = quickFolders.any { it.second.absolutePath == browsing.absolutePath }
+            val parent = folderState?.parentDir
+            currentFolder = if (!isQuickRoot && parent != null) parent else null
+        } else {
+            onBack()
+        }
+    }
+    BackHandler(onBack = handleBack)
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+    ) {
+        hasMediaPerm = WallpaperStore.hasMediaPermission(context)
+        hasAllFiles = WallpaperStore.hasAllFilesAccess()
+        scanTrigger++
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val newMedia = WallpaperStore.hasMediaPermission(context)
+                val newAll = WallpaperStore.hasAllFilesAccess()
+                if (newMedia != hasMediaPerm || newAll != hasAllFiles) {
+                    hasMediaPerm = newMedia
+                    hasAllFiles = newAll
+                    scanTrigger++
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     LaunchedEffect(Unit) {
         firstItem.requestFocusWhenReady()
-        localFiles = withContext(Dispatchers.IO) { WallpaperStore.scanLocalImages() }
+        if (!WallpaperStore.hasMediaPermission(context)) {
+            runCatching { permissionLauncher.launch(WallpaperStore.requiredPermissions()) }
+        }
+    }
+
+    LaunchedEffect(scanTrigger, hasMediaPerm, hasAllFiles) {
+        val (folders, images) = withContext(Dispatchers.IO) {
+            WallpaperStore.getQuickFolders() to WallpaperStore.queryAllLocalImages(context)
+        }
+        quickFolders = folders
+        allImages = images
+    }
+
+    LaunchedEffect(currentFolder, scanTrigger) {
+        val target = currentFolder
+        folderState = if (target != null) {
+            withContext(Dispatchers.IO) { WallpaperStore.browseDirectory(target) }
+        } else {
+            null
+        }
+    }
+
+    fun selectEntry(entry: LocalImageEntry) {
+        val file = entry.file?.takeIf { it.exists() && it.canRead() }
+        if (file != null) {
+            onSelectFile(file)
+        } else if (entry.contentUri != null) {
+            onSelectUri(entry.contentUri)
+        } else if (entry.file != null) {
+            onSelectFile(entry.file)
+        }
     }
 
     Column(Modifier.fillMaxSize()) {
+        val activeFolder = currentFolder
         SheetHeader(
             breadcrumb = stringResource(R.string.customize_theme_wallpaper),
-            title = stringResource(R.string.wallpaper_from_file),
-            subtitle = stringResource(R.string.wallpaper_from_file_subtitle),
+            title = activeFolder?.name?.takeIf { it.isNotBlank() } ?: stringResource(R.string.wallpaper_from_file),
+            subtitle = activeFolder?.absolutePath ?: stringResource(R.string.wallpaper_from_file_subtitle),
         )
         LazyColumn(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.weight(1f),
         ) {
-            item(key = "system_picker") {
-                TvSettingsItem(
-                    icon = Icons.Outlined.FolderOpen,
-                    title = stringResource(R.string.wallpaper_system_picker),
-                    subtitle = stringResource(R.string.wallpaper_system_picker_subtitle),
-                    onClick = {
-                        runCatching { documentLauncher.launch(arrayOf("image/*")) }.onFailure {
-                            Toast.makeText(context, context.getString(R.string.toast_could_not_open), Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    modifier = Modifier.focusRequester(firstItem),
-                    showChevron = true,
-                )
-            }
-            if (localFiles.isEmpty()) {
-                item(key = "empty_notice") {
-                    Text(
-                        stringResource(R.string.wallpaper_local_empty),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = ToolkitColors.OnSurfaceMuted,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+            if (activeFolder != null) {
+                val state = folderState
+                item(key = "folder_back_roots") {
+                    TvSettingsItem(
+                        icon = Icons.Outlined.Home,
+                        title = stringResource(R.string.wallpaper_folder_back_roots),
+                        subtitle = stringResource(R.string.wallpaper_folder_back_roots_subtitle),
+                        onClick = { currentFolder = null },
+                        modifier = Modifier.focusRequester(firstItem),
                     )
                 }
+                val parent = state?.parentDir
+                if (parent != null) {
+                    item(key = "folder_up_${parent.absolutePath}") {
+                        TvSettingsItem(
+                            icon = Icons.Outlined.FolderOpen,
+                            title = stringResource(R.string.wallpaper_folder_up),
+                            subtitle = stringResource(
+                                R.string.wallpaper_folder_up_subtitle,
+                                parent.name.ifBlank { parent.absolutePath },
+                            ),
+                            onClick = { currentFolder = parent },
+                        )
+                    }
+                }
+                if (state != null) {
+                    if (state.directories.isEmpty() && state.images.isEmpty()) {
+                        item(key = "folder_empty") {
+                            Text(
+                                stringResource(R.string.wallpaper_folder_empty),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = ToolkitColors.OnSurfaceMuted,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                            )
+                        }
+                    } else {
+                        itemsIndexed(state.directories, key = { _, d -> "dir_${d.absolutePath}" }) { _, subDir ->
+                            TvSettingsItem(
+                                icon = Icons.Outlined.FolderOpen,
+                                title = subDir.name,
+                                subtitle = stringResource(R.string.wallpaper_folder_item_subtitle, subDir.absolutePath),
+                                onClick = { currentFolder = subDir },
+                                showChevron = true,
+                            )
+                        }
+                        itemsIndexed(state.images, key = { _, img -> img.id }) { _, entry ->
+                            LocalImagePickerItem(
+                                entry = entry,
+                                onClick = { selectEntry(entry) },
+                            )
+                        }
+                    }
+                }
             } else {
-                itemsIndexed(localFiles, key = { _, f -> f.absolutePath }) { _, file ->
-                    TvSettingsItem(
-                        icon = Icons.Outlined.Image,
-                        title = file.name,
-                        subtitle = file.parentFile?.name ?: file.absolutePath,
-                        onClick = { onSelectFile(file) },
+                var focusAssigned = false
+                fun nextFocusModifier(): Modifier =
+                    if (!focusAssigned) {
+                        focusAssigned = true
+                        Modifier.focusRequester(firstItem)
+                    } else {
+                        Modifier
+                    }
+
+                if (!hasMediaPerm) {
+                    item(key = "grant_media_perm") {
+                        TvSettingsItem(
+                            icon = Icons.Outlined.FolderOpen,
+                            title = stringResource(R.string.wallpaper_permission_title),
+                            subtitle = stringResource(R.string.wallpaper_permission_subtitle),
+                            onClick = {
+                                runCatching {
+                                    permissionLauncher.launch(WallpaperStore.requiredPermissions())
+                                }.onFailure {
+                                    WallpaperStore.openAllFilesAccessSettings(context)
+                                }
+                            },
+                            modifier = nextFocusModifier(),
+                            showChevron = true,
+                        )
+                    }
+                }
+
+                if (!hasAllFiles) {
+                    item(key = "grant_all_files") {
+                        TvSettingsItem(
+                            icon = Icons.Outlined.Settings,
+                            title = stringResource(R.string.wallpaper_all_files_title),
+                            subtitle = stringResource(R.string.wallpaper_all_files_subtitle),
+                            onClick = { WallpaperStore.openAllFilesAccessSettings(context) },
+                            modifier = nextFocusModifier(),
+                            showChevron = true,
+                        )
+                    }
+                }
+
+                if (quickFolders.isNotEmpty()) {
+                    item(key = "section_folders") {
+                        Text(
+                            stringResource(R.string.wallpaper_quick_folders_section).uppercase(),
+                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.8.sp),
+                            color = ToolkitColors.Accent,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        )
+                    }
+                    itemsIndexed(quickFolders, key = { _, pair -> "qfolder_${pair.second.absolutePath}" }) { _, (label, dir) ->
+                        TvSettingsItem(
+                            icon = Icons.Outlined.FolderOpen,
+                            title = label,
+                            subtitle = dir.absolutePath,
+                            onClick = { currentFolder = dir },
+                            modifier = nextFocusModifier(),
+                            showChevron = true,
+                        )
+                    }
+                }
+
+                item(key = "section_all_images") {
+                    Text(
+                        stringResource(R.string.wallpaper_all_images_section, allImages.size).uppercase(),
+                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.8.sp),
+                        color = ToolkitColors.Accent,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     )
+                }
+
+                item(key = "rescan_storage") {
+                    TvSettingsItem(
+                        icon = Icons.Outlined.Refresh,
+                        title = stringResource(R.string.wallpaper_rescan),
+                        subtitle = stringResource(R.string.wallpaper_rescan_subtitle),
+                        onClick = { scanTrigger++ },
+                        modifier = nextFocusModifier(),
+                    )
+                }
+
+                if (allImages.isEmpty()) {
+                    item(key = "empty_notice") {
+                        Text(
+                            stringResource(R.string.wallpaper_local_empty),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = ToolkitColors.OnSurfaceMuted,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                        )
+                    }
+                } else {
+                    itemsIndexed(allImages, key = { _, entry -> entry.id }) { _, entry ->
+                        LocalImagePickerItem(
+                            entry = entry,
+                            onClick = { selectEntry(entry) },
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun LocalImagePickerItem(
+    entry: LocalImageEntry,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    var thumbnail by remember(entry.id) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+
+    LaunchedEffect(entry.id) {
+        thumbnail = withContext(Dispatchers.IO) {
+            WallpaperStore.loadThumbnail(context, entry)
+        }
+    }
+
+    ListItem(
+        selected = false,
+        onClick = onClick,
+        modifier = modifier,
+        leadingContent = {
+            val bmp = thumbnail
+            if (bmp != null) {
+                Image(
+                    bitmap = bmp,
+                    contentDescription = entry.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(IconBoxShape)
+                        .border(1.dp, Color.White.copy(alpha = 0.14f), IconBoxShape),
+                )
+            } else {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(ToolkitColors.OnSurface.copy(alpha = 0.08f), IconBoxShape),
+                ) {
+                    Icon(
+                        Icons.Outlined.Image,
+                        contentDescription = null,
+                        tint = ToolkitColors.Accent,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+        },
+        headlineContent = {
+            Text(
+                entry.name,
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        supportingContent = {
+            Text(
+                entry.formattedSubtitle(),
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        shape = ListItemDefaults.shape(ItemShape),
+        scale = ListItemDefaults.scale(focusedScale = 1.02f),
+        colors = ListItemDefaults.colors(
+            containerColor = Color.Transparent,
+            contentColor = ToolkitColors.OnSurface.copy(alpha = 0.78f),
+            focusedContainerColor = ToolkitColors.OnSurface.copy(alpha = 0.14f),
+            focusedContentColor = ToolkitColors.OnSurface,
+        ),
+    )
 }
 
 @Composable

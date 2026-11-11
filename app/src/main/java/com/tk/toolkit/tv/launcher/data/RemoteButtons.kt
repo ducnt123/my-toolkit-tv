@@ -7,6 +7,7 @@ import android.view.KeyEvent
 import android.widget.Toast
 import androidx.annotation.StringRes
 import com.tk.toolkit.tv.R
+import com.tk.toolkit.tv.core.PinLockActivity
 import com.tk.toolkit.tv.launcher.data.AppActions.safeStart
 
 enum class RemoteButton(
@@ -207,7 +208,15 @@ object RemoteButtons {
     fun executeCustomTarget(context: Context, target: String, buttonName: String) {
         val localized = LocaleHelper.wrapContext(context)
         when (target) {
-            ACTION_SYSTEM_SETTINGS -> AppActions.openSystemSettings(localized)
+            ACTION_SYSTEM_SETTINGS -> {
+                if (AppLockManager.isSystemSettingsLocked(localized) &&
+                    AppLockManager.SETTINGS_PACKAGES.none { AppLockManager.isTempUnlocked(it) }
+                ) {
+                    AppLockManager.openGuardForSystemSettings(localized)
+                } else {
+                    AppActions.openSystemSettings(localized)
+                }
+            }
             ACTION_SYSTEM_ACCOUNTS -> AppActions.openAccountsSettings(localized)
             ACTION_LIVE_TV -> openDefaultGuide(localized)
             else -> {
@@ -232,7 +241,15 @@ object RemoteButtons {
 
     private fun executeDefaultAction(context: Context, button: RemoteButton) {
         when (button) {
-            RemoteButton.SETTINGS -> AppActions.openSystemSettings(context)
+            RemoteButton.SETTINGS -> {
+                if (AppLockManager.isSystemSettingsLocked(context) &&
+                    AppLockManager.SETTINGS_PACKAGES.none { AppLockManager.isTempUnlocked(it) }
+                ) {
+                    AppLockManager.openGuardForSystemSettings(context)
+                } else {
+                    AppActions.openSystemSettings(context)
+                }
+            }
             RemoteButton.PROFILE -> AppActions.openAccountsSettings(context)
             RemoteButton.YOUTUBE -> openDefaultYouTube(context)
             RemoteButton.GUIDE -> openDefaultGuide(context)
@@ -279,6 +296,24 @@ object RemoteButtons {
     }
 
     fun launchPackage(context: Context, packageName: String): Boolean {
+        val pm = context.packageManager
+        val intent = pm.getLeanbackLaunchIntentForPackage(packageName)
+            ?: pm.getLaunchIntentForPackage(packageName)
+            ?: return false
+        if (AppLockManager.isPackageLocked(context, packageName) && !AppLockManager.isTempUnlocked(packageName)) {
+            AppLockManager.openGuardForPackage(
+                context = context,
+                packageName = packageName,
+                actionType = PinLockActivity.ACTION_VERIFY_AND_LAUNCH,
+            )
+            return true
+        }
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.safeStart(intent)
+        return true
+    }
+
+    fun launchPackageUnchecked(context: Context, packageName: String): Boolean {
         val pm = context.packageManager
         val intent = pm.getLeanbackLaunchIntentForPackage(packageName)
             ?: pm.getLaunchIntentForPackage(packageName)

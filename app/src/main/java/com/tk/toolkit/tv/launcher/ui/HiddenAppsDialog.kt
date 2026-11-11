@@ -42,6 +42,7 @@ private val PanelShape = RoundedCornerShape(28.dp)
 @Composable
 fun HiddenAppsDialog(
     apps: List<LauncherApp>,
+    lockedPackages: Set<String> = emptySet(),
     onDismiss: () -> Unit,
     onLaunch: (LauncherApp) -> Unit,
     onLongPress: (LauncherApp) -> Unit,
@@ -100,6 +101,7 @@ fun HiddenAppsDialog(
                                 onLongClick = { onLongPress(app) },
                                 onMoveBy = {},
                                 onDrop = {},
+                                isLocked = app.packageName in lockedPackages,
                                 modifier = Modifier.animateItem(),
                             )
                         }

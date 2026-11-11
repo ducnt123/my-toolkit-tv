@@ -61,6 +61,17 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".core.PinLockActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:noHistory="true"
+            android:screenOrientation="landscape"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Toolkit"
+            tools:ignore="DiscouragedApi" />
+
         <service
             android:name=".core.ToolkitAccessibilityService"
             android:exported="false"

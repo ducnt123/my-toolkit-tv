@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.SharedPreferences
 import android.os.Handler
 import android.os.Looper
 import android.view.KeyEvent
@@ -15,7 +16,9 @@ import androidx.core.content.ContextCompat
 import com.tk.toolkit.tv.MainActivity
 import com.tk.toolkit.tv.R
 import com.tk.toolkit.tv.launcher.data.AppActions
+import com.tk.toolkit.tv.launcher.data.AppLockManager
 import com.tk.toolkit.tv.launcher.data.AutoLaunchManager
+import com.tk.toolkit.tv.launcher.data.LauncherPrefs
 import com.tk.toolkit.tv.launcher.data.LocaleHelper
 import com.tk.toolkit.tv.launcher.data.RemoteButtons
 
@@ -37,14 +40,25 @@ class ToolkitAccessibilityService : AccessibilityService() {
     private val screenWakeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
-                Intent.ACTION_SCREEN_OFF -> AutoLaunchManager.onScreenOff()
+                Intent.ACTION_SCREEN_OFF -> {
+                    AutoLaunchManager.onScreenOff()
+                    AppLockManager.onScreenOff()
+                }
                 Intent.ACTION_SCREEN_ON -> AutoLaunchManager.onScreenOn(context)
             }
         }
     }
 
+    private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        syncLockMonitor()
+    }
+
     override fun onServiceConnected() {
         instance = this
+        runCatching {
+            LauncherPrefs(this).registerChangeListener(prefsListener)
+        }
+        syncLockMonitor()
         runCatching {
             ContextCompat.registerReceiver(
                 this,
@@ -58,7 +72,20 @@ class ToolkitAccessibilityService : AccessibilityService() {
         }
     }
 
+    fun syncLockMonitor() {
+        runCatching {
+            val info = serviceInfo ?: return
+            val monitored = BASE_MONITORED_PACKAGES + packageName + AppLockManager.monitoredPackages(this)
+            val targetArray = monitored.toTypedArray()
+            if (!info.packageNames.contentEquals(targetArray)) {
+                info.packageNames = targetArray
+                serviceInfo = info
+            }
+        }
+    }
+
     override fun onDestroy() {
+        runCatching { LauncherPrefs(this).unregisterChangeListener(prefsListener) }
         runCatching { unregisterReceiver(screenWakeReceiver) }
         if (instance === this) instance = null
         super.onDestroy()
@@ -95,14 +122,35 @@ class ToolkitAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val accEvent = event ?: return
         runCatching {
-            // Catches the stock home showing up some other way (boot, an app exiting to home).
-            if (accEvent.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
-                accEvent.packageName == STOCK_LAUNCHER &&
-                accEvent.className?.toString() == STOCK_HOME_ACTIVITY &&
-                RemoteButtons.shouldOverrideHomeKey(this)
-            ) {
-                openToolkit()
-                return
+            val pkg = accEvent.packageName?.toString().orEmpty()
+            val cls = accEvent.className?.toString().orEmpty()
+
+            if (accEvent.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                // Catches the stock home showing up some other way (boot, an app exiting to home).
+                if (pkg == STOCK_LAUNCHER &&
+                    cls == STOCK_HOME_ACTIVITY &&
+                    RemoteButtons.shouldOverrideHomeKey(this)
+                ) {
+                    AppLockManager.onReturnedToHome()
+                    openToolkit()
+                    return
+                }
+                if (pkg == packageName && cls != PinLockActivity::class.java.name) {
+                    AppLockManager.onReturnedToHome()
+                }
+                if (target == null &&
+                    pkg.isNotBlank() &&
+                    pkg != packageName &&
+                    cls != "android.widget.Toast" &&
+                    AppLockManager.shouldBlockPackageInGuard(this, pkg)
+                ) {
+                    AppLockManager.openGuardForPackage(
+                        context = this,
+                        packageName = pkg,
+                        actionType = PinLockActivity.ACTION_VERIFY_AND_RESUME,
+                    )
+                    return
+                }
             }
             if (target == null) return
             val root = rootInActiveWindow ?: return
@@ -169,6 +217,11 @@ class ToolkitAccessibilityService : AccessibilityService() {
         private const val LONG_PRESS_MS = 600L
         private const val STOCK_LAUNCHER = "com.google.android.apps.tv.launcherx"
         private const val STOCK_HOME_ACTIVITY = "com.google.android.apps.tv.launcherx.home.HomeActivity"
+        private val BASE_MONITORED_PACKAGES = setOf(
+            "com.android.tv.settings",
+            "com.android.settings",
+            STOCK_LAUNCHER,
+        )
         private val FORCE_STOP_LABELS = listOf("Force stop", "Buộc dừng", "Bắt buộc dừng")
         private val CONFIRM_LABELS = listOf("OK", "Ok", "Đồng ý")
     }

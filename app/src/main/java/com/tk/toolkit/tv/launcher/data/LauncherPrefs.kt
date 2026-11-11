@@ -128,6 +128,74 @@ class LauncherPrefs(context: Context) {
         prefs.edit { putString(KEY_UPDATE_CHECK_INTERVAL, interval.id) }
     }
 
+    fun isAppLockEnabled(): Boolean = prefs.getBoolean(KEY_APP_LOCK_ENABLED, false)
+
+    fun setAppLockEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_APP_LOCK_ENABLED, enabled) }
+    }
+
+    fun appLockPinHash(): String = prefs.getString(KEY_APP_LOCK_PIN_HASH, "").orEmpty()
+
+    fun appLockPinSalt(): String = prefs.getString(KEY_APP_LOCK_PIN_SALT, "").orEmpty()
+
+    fun hasAppLockPin(): Boolean = appLockPinHash().isNotBlank() && appLockPinSalt().isNotBlank()
+
+    fun saveAppLockPin(hash: String, salt: String) {
+        prefs.edit {
+            putString(KEY_APP_LOCK_PIN_HASH, hash)
+            putString(KEY_APP_LOCK_PIN_SALT, salt)
+        }
+    }
+
+    fun clearAppLockPin() {
+        prefs.edit {
+            remove(KEY_APP_LOCK_PIN_HASH)
+            remove(KEY_APP_LOCK_PIN_SALT)
+            putBoolean(KEY_APP_LOCK_ENABLED, false)
+        }
+    }
+
+    fun lockedPackages(): Set<String> = prefs.getStringSet(KEY_APP_LOCK_PACKAGES, null).orEmpty()
+
+    fun setPackageLocked(packageName: String, locked: Boolean) {
+        val updated = lockedPackages().toMutableSet().apply {
+            if (locked) add(packageName) else remove(packageName)
+        }
+        prefs.edit { putStringSet(KEY_APP_LOCK_PACKAGES, updated) }
+    }
+
+    fun isLockCustomizeEnabled(): Boolean = prefs.getBoolean(KEY_APP_LOCK_CUSTOMIZE, false)
+
+    fun setLockCustomizeEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_APP_LOCK_CUSTOMIZE, enabled) }
+    }
+
+    fun isLockAppActionsEnabled(): Boolean = prefs.getBoolean(KEY_APP_LOCK_APP_ACTIONS, true)
+
+    fun setLockAppActionsEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_APP_LOCK_APP_ACTIONS, enabled) }
+    }
+
+    fun isLockSystemSettingsEnabled(): Boolean = prefs.getBoolean(KEY_APP_LOCK_SYSTEM_SETTINGS, false)
+
+    fun setLockSystemSettingsEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_APP_LOCK_SYSTEM_SETTINGS, enabled) }
+    }
+
+    fun isLockSystemGuardEnabled(): Boolean = prefs.getBoolean(KEY_APP_LOCK_SYSTEM_GUARD, true)
+
+    fun setLockSystemGuardEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_APP_LOCK_SYSTEM_GUARD, enabled) }
+    }
+
+    fun registerChangeListener(listener: android.content.SharedPreferences.OnSharedPreferenceChangeListener) {
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+    }
+
+    fun unregisterChangeListener(listener: android.content.SharedPreferences.OnSharedPreferenceChangeListener) {
+        prefs.unregisterOnSharedPreferenceChangeListener(listener)
+    }
+
     fun lastUpdateCheckTimeMs(): Long = prefs.getLong(KEY_LAST_UPDATE_CHECK_MS, 0L)
 
     fun setLastUpdateCheckTimeMs(timeMs: Long) {
@@ -318,6 +386,11 @@ class LauncherPrefs(context: Context) {
             KEY_CUSTOM_REMOTE_KEYS,
             JSONArray(customKeyMappings().map { "${it.keyCode}:${it.scanCode}:${it.target}" }),
         )
+        root.put(KEY_APP_LOCK_PACKAGES, JSONArray(lockedPackages().toList()))
+        root.put(KEY_APP_LOCK_CUSTOMIZE, isLockCustomizeEnabled())
+        root.put(KEY_APP_LOCK_APP_ACTIONS, isLockAppActionsEnabled())
+        root.put(KEY_APP_LOCK_SYSTEM_SETTINGS, isLockSystemSettingsEnabled())
+        root.put(KEY_APP_LOCK_SYSTEM_GUARD, isLockSystemGuardEnabled())
         return root.toString(2)
     }
 
@@ -372,6 +445,21 @@ class LauncherPrefs(context: Context) {
             root.optJSONArray(KEY_CUSTOM_REMOTE_KEYS)?.toStringList()?.let {
                 putString(KEY_CUSTOM_REMOTE_KEYS, it.joinToString("\n"))
             }
+            root.optJSONArray(KEY_APP_LOCK_PACKAGES)?.toStringList()?.let {
+                putStringSet(KEY_APP_LOCK_PACKAGES, it.toSet())
+            }
+            if (root.has(KEY_APP_LOCK_CUSTOMIZE)) {
+                putBoolean(KEY_APP_LOCK_CUSTOMIZE, root.optBoolean(KEY_APP_LOCK_CUSTOMIZE, false))
+            }
+            if (root.has(KEY_APP_LOCK_APP_ACTIONS)) {
+                putBoolean(KEY_APP_LOCK_APP_ACTIONS, root.optBoolean(KEY_APP_LOCK_APP_ACTIONS, true))
+            }
+            if (root.has(KEY_APP_LOCK_SYSTEM_SETTINGS)) {
+                putBoolean(KEY_APP_LOCK_SYSTEM_SETTINGS, root.optBoolean(KEY_APP_LOCK_SYSTEM_SETTINGS, false))
+            }
+            if (root.has(KEY_APP_LOCK_SYSTEM_GUARD)) {
+                putBoolean(KEY_APP_LOCK_SYSTEM_GUARD, root.optBoolean(KEY_APP_LOCK_SYSTEM_GUARD, true))
+            }
         }
         true
     }.getOrDefault(false)
@@ -406,5 +494,13 @@ class LauncherPrefs(context: Context) {
         private const val KEY_REMOTE_KEYCODE_PREFIX = "remote_keycode_"
         private const val KEY_REMOTE_SCANCODE_PREFIX = "remote_scancode_"
         private const val KEY_CUSTOM_REMOTE_KEYS = "custom_remote_keys"
+        private const val KEY_APP_LOCK_ENABLED = "app_lock_enabled"
+        private const val KEY_APP_LOCK_PIN_HASH = "app_lock_pin_hash"
+        private const val KEY_APP_LOCK_PIN_SALT = "app_lock_pin_salt"
+        private const val KEY_APP_LOCK_PACKAGES = "app_lock_packages"
+        private const val KEY_APP_LOCK_CUSTOMIZE = "app_lock_customize"
+        private const val KEY_APP_LOCK_APP_ACTIONS = "app_lock_app_actions"
+        private const val KEY_APP_LOCK_SYSTEM_SETTINGS = "app_lock_system_settings"
+        private const val KEY_APP_LOCK_SYSTEM_GUARD = "app_lock_system_guard"
     }
 }

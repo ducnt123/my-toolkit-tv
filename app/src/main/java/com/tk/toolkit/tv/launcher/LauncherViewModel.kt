@@ -6,7 +6,9 @@ import android.net.Uri
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.tk.toolkit.tv.core.ToolkitAccessibilityService
 import com.tk.toolkit.tv.launcher.data.AppLanguage
+import com.tk.toolkit.tv.launcher.data.AppLockManager
 import com.tk.toolkit.tv.launcher.data.AppRepository
 import com.tk.toolkit.tv.launcher.data.AppThemePalette
 import com.tk.toolkit.tv.launcher.data.AppUpdateManager
@@ -77,6 +79,20 @@ data class LauncherState(
     val updateCheckInterval: UpdateCheckInterval = UpdateCheckInterval.DEFAULT,
     /** Non-empty when a newer version has been found on GitHub Releases (e.g. "1.2"). */
     val availableUpdateVersion: String = "",
+    /** Whether 4-digit PIN protection is active. */
+    val appLockEnabled: Boolean = false,
+    /** Whether a 4-digit PIN has been configured. */
+    val hasAppLockPin: Boolean = false,
+    /** Package names locked by the user. */
+    val lockedPackages: Set<String> = emptySet(),
+    /** Whether opening Customize requires the PIN. */
+    val lockCustomize: Boolean = false,
+    /** Whether Move / Hide / Info / Force stop / Uninstall actions require the PIN. */
+    val lockAppActions: Boolean = true,
+    /** Whether opening Android TV Settings requires the PIN. */
+    val lockSystemSettings: Boolean = false,
+    /** Whether AccessibilityService guards locked apps opened from App info or external triggers. */
+    val lockSystemGuard: Boolean = true,
     val loaded: Boolean = false,
     /** App package or Continue Watching key currently being repositioned, if any. */
     val movingKey: String? = null,
@@ -108,6 +124,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             autoLaunchOnWake = prefs.isAutoLaunchOnWakeEnabled(),
             updateCheckInterval = prefs.updateCheckInterval(),
             availableUpdateVersion = prefs.availableUpdateVersion(),
+            appLockEnabled = prefs.isAppLockEnabled(),
+            hasAppLockPin = prefs.hasAppLockPin(),
+            lockedPackages = prefs.lockedPackages(),
+            lockCustomize = prefs.isLockCustomizeEnabled(),
+            lockAppActions = prefs.isLockAppActionsEnabled(),
+            lockSystemSettings = prefs.isLockSystemSettingsEnabled(),
+            lockSystemGuard = prefs.isLockSystemGuardEnabled(),
         ),
     )
     val state: StateFlow<LauncherState> = _state.asStateFlow()
@@ -153,6 +176,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val autoWake = prefs.isAutoLaunchOnWakeEnabled()
             val updateInterval = prefs.updateCheckInterval()
             val availableUpdate = prefs.availableUpdateVersion()
+            val appLockEnabled = prefs.isAppLockEnabled()
+            val hasAppLockPin = prefs.hasAppLockPin()
+            val lockedPackages = prefs.lockedPackages()
+            val lockCustomize = prefs.isLockCustomizeEnabled()
+            val lockAppActions = prefs.isLockAppActionsEnabled()
+            val lockSystemSettings = prefs.isLockSystemSettingsEnabled()
+            val lockSystemGuard = prefs.isLockSystemGuardEnabled()
             ToolkitColors.currentPalette = palette
 
             _state.update { current ->
@@ -179,6 +209,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     autoLaunchOnWake = autoWake,
                     updateCheckInterval = updateInterval,
                     availableUpdateVersion = availableUpdate,
+                    appLockEnabled = appLockEnabled,
+                    hasAppLockPin = hasAppLockPin,
+                    lockedPackages = lockedPackages,
+                    lockCustomize = lockCustomize,
+                    lockAppActions = lockAppActions,
+                    lockSystemSettings = lockSystemSettings,
+                    lockSystemGuard = lockSystemGuard,
                     homeRequestCount = current.homeRequestCount,
                 )
             }
@@ -371,7 +408,56 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun reloadAfterRestore() {
         LocaleHelper.wrapContext(getApplication(), prefs.language())
         ToolkitColors.currentPalette = prefs.themePalette()
+        ToolkitAccessibilityService.instance?.syncLockMonitor()
         refresh()
+    }
+
+    fun setupAppLockPin(pin: String) {
+        AppLockManager.setPin(getApplication(), pin)
+        _state.update { it.copy(hasAppLockPin = true, appLockEnabled = true) }
+        ToolkitAccessibilityService.instance?.syncLockMonitor()
+    }
+
+    fun removeAppLockPin() {
+        AppLockManager.clearPin(getApplication())
+        _state.update { it.copy(hasAppLockPin = false, appLockEnabled = false) }
+        ToolkitAccessibilityService.instance?.syncLockMonitor()
+    }
+
+    fun setAppLockEnabled(enabled: Boolean) {
+        val allowed = enabled && prefs.hasAppLockPin()
+        prefs.setAppLockEnabled(allowed)
+        if (!allowed) AppLockManager.clearTempUnlocks()
+        _state.update { it.copy(appLockEnabled = allowed) }
+        ToolkitAccessibilityService.instance?.syncLockMonitor()
+    }
+
+    fun setPackageLocked(packageName: String, locked: Boolean) {
+        prefs.setPackageLocked(packageName, locked)
+        _state.update { it.copy(lockedPackages = prefs.lockedPackages()) }
+        ToolkitAccessibilityService.instance?.syncLockMonitor()
+    }
+
+    fun setLockCustomizeEnabled(enabled: Boolean) {
+        prefs.setLockCustomizeEnabled(enabled)
+        _state.update { it.copy(lockCustomize = enabled) }
+    }
+
+    fun setLockAppActionsEnabled(enabled: Boolean) {
+        prefs.setLockAppActionsEnabled(enabled)
+        _state.update { it.copy(lockAppActions = enabled) }
+    }
+
+    fun setLockSystemSettingsEnabled(enabled: Boolean) {
+        prefs.setLockSystemSettingsEnabled(enabled)
+        _state.update { it.copy(lockSystemSettings = enabled) }
+        ToolkitAccessibilityService.instance?.syncLockMonitor()
+    }
+
+    fun setLockSystemGuardEnabled(enabled: Boolean) {
+        prefs.setLockSystemGuardEnabled(enabled)
+        _state.update { it.copy(lockSystemGuard = enabled) }
+        ToolkitAccessibilityService.instance?.syncLockMonitor()
     }
 
     fun setWatchPackageEnabled(packageName: String, enabled: Boolean) {
@@ -444,6 +530,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun onHomePressed() {
+        AppLockManager.onReturnedToHome()
         val wasMoving = _state.value.movingKey != null
         _state.update { it.copy(movingKey = null, homeRequestCount = it.homeRequestCount + 1) }
         if (wasMoving) saveOrder()
@@ -475,6 +562,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 autoLaunchOnWake = current.autoLaunchOnWake,
                 updateCheckInterval = current.updateCheckInterval,
                 availableUpdateVersion = current.availableUpdateVersion,
+                appLockEnabled = current.appLockEnabled,
+                hasAppLockPin = current.hasAppLockPin,
+                lockedPackages = current.lockedPackages,
+                lockCustomize = current.lockCustomize,
+                lockAppActions = current.lockAppActions,
+                lockSystemSettings = current.lockSystemSettings,
+                lockSystemGuard = current.lockSystemGuard,
                 homeRequestCount = current.homeRequestCount,
             )
         }

@@ -15,6 +15,7 @@ import androidx.core.content.ContextCompat
 import com.tk.toolkit.tv.core.ToolkitAccessibilityService
 import com.tk.toolkit.tv.core.ToolkitApp
 import com.tk.toolkit.tv.launcher.LauncherViewModel
+import com.tk.toolkit.tv.launcher.data.AppLockManager
 import com.tk.toolkit.tv.launcher.data.AutoLaunchManager
 import com.tk.toolkit.tv.launcher.data.LocaleHelper
 import com.tk.toolkit.tv.launcher.data.RemoteButtons
@@ -40,7 +41,10 @@ class MainActivity : ComponentActivity() {
     private val screenWakeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
-                Intent.ACTION_SCREEN_OFF -> AutoLaunchManager.onScreenOff()
+                Intent.ACTION_SCREEN_OFF -> {
+                    AutoLaunchManager.onScreenOff()
+                    AppLockManager.onScreenOff()
+                }
                 Intent.ACTION_SCREEN_ON -> AutoLaunchManager.onScreenOn(context)
             }
         }
@@ -105,6 +109,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        AppLockManager.onReturnedToHome()
         launcherViewModel.refresh()
     }
 

@@ -63,7 +63,10 @@ import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.LiveTv
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.LockReset
 import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.PlayCircleOutline
 import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material.icons.outlined.Refresh
@@ -125,6 +128,7 @@ import androidx.tv.material3.Text
 import com.tk.toolkit.tv.R
 import com.tk.toolkit.tv.core.ToolkitAccessibilityService
 import com.tk.toolkit.tv.launcher.data.AppLanguage
+import com.tk.toolkit.tv.launcher.data.AppLockManager
 import com.tk.toolkit.tv.launcher.data.AppThemePalette
 import com.tk.toolkit.tv.launcher.data.AppUpdateManager
 import com.tk.toolkit.tv.launcher.data.AutoLaunchManager
@@ -185,6 +189,10 @@ private sealed interface CustomizePage {
     data object AppUpdate : CustomizePage { override val depth = 2 }
     data object BackupRestore : CustomizePage { override val depth = 2 }
     data object AdvancedSettings : CustomizePage { override val depth = 2 }
+
+    // App Lock & Security
+    data object AppLock : CustomizePage { override val depth = 1 }
+    data object AppLockApps : CustomizePage { override val depth = 2 }
 }
 
 private class PanelFocusMemory {
@@ -309,6 +317,13 @@ fun CustomizeDialog(
     remoteButtons: List<RemoteButtonConfig>,
     customKeyMappings: List<CustomKeyMapping>,
     overrideHomeKey: Boolean,
+    appLockEnabled: Boolean,
+    hasAppLockPin: Boolean,
+    lockedPackages: Set<String>,
+    lockCustomize: Boolean,
+    lockAppActions: Boolean,
+    lockSystemSettings: Boolean,
+    lockSystemGuard: Boolean,
     onToggleWatchRow: (Boolean) -> Unit,
     onSetAppColumns: (Int) -> Unit,
     onToggleBackToAmbient: (Boolean) -> Unit,
@@ -332,11 +347,22 @@ fun CustomizeDialog(
     onUpsertCustomKeyMapping: (Int, Int, String) -> Unit,
     onRemoveCustomKeyMapping: (Int, Int) -> Unit,
     onToggleOverrideHomeKey: (Boolean) -> Unit,
+    onSetupAppLockPin: (String) -> Unit,
+    onRemoveAppLockPin: () -> Unit,
+    onSetAppLockEnabled: (Boolean) -> Unit,
+    onSetPackageLocked: (String, Boolean) -> Unit,
+    onSetLockCustomize: (Boolean) -> Unit,
+    onSetLockAppActions: (Boolean) -> Unit,
+    onSetLockSystemSettings: (Boolean) -> Unit,
+    onSetLockSystemGuard: (Boolean) -> Unit,
     onRefresh: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     var page by remember { mutableStateOf<CustomizePage>(CustomizePage.Main) }
     val focusMemory = remember { PanelFocusMemory() }
+    var showPinSetup by remember { mutableStateOf(false) }
+    var showPinVerifyForLock by remember { mutableStateOf(false) }
+    var showRemovePinConfirm by remember { mutableStateOf(false) }
 
     fun navigateForward(target: CustomizePage) {
         focusMemory.clear(target)
@@ -353,6 +379,7 @@ fun CustomizeDialog(
             CustomizePage.ControlsGroup -> CustomizePage.Main
             CustomizePage.Language -> CustomizePage.Main
             CustomizePage.SystemGroup -> CustomizePage.Main
+            CustomizePage.AppLock -> CustomizePage.Main
             CustomizePage.ThemeWallpaper -> CustomizePage.AppearanceGroup
             CustomizePage.WallpaperLocalFile -> CustomizePage.ThemeWallpaper
             CustomizePage.WallpaperUrl -> CustomizePage.ThemeWallpaper
@@ -366,6 +393,7 @@ fun CustomizeDialog(
             CustomizePage.AppUpdate -> CustomizePage.SystemGroup
             CustomizePage.BackupRestore -> CustomizePage.SystemGroup
             CustomizePage.AdvancedSettings -> CustomizePage.SystemGroup
+            CustomizePage.AppLockApps -> CustomizePage.AppLock
         }
     }
 
@@ -434,11 +462,21 @@ fun CustomizeDialog(
                                     language = language,
                                     themePalette = themePalette,
                                     availableUpdateVersion = availableUpdateVersion,
+                                    appLockEnabled = appLockEnabled,
+                                    hasAppLockPin = hasAppLockPin,
+                                    lockedCount = lockedPackages.size + if (lockSystemSettings) 1 else 0,
                                     onSetLanguage = onSetLanguage,
                                     onOpenAppearance = { navigateForward(CustomizePage.AppearanceGroup) },
                                     onOpenControls = { navigateForward(CustomizePage.ControlsGroup) },
                                     onOpenLanguage = { navigateForward(CustomizePage.Language) },
                                     onOpenSystem = { navigateForward(CustomizePage.SystemGroup) },
+                                    onOpenAppLock = {
+                                        if (hasAppLockPin && !AppLockManager.isCustomizeUnlockedInSession()) {
+                                            showPinVerifyForLock = true
+                                        } else {
+                                            navigateForward(CustomizePage.AppLock)
+                                        }
+                                    },
                                     onRefresh = onRefresh,
                                 )
                             }
@@ -690,9 +728,73 @@ fun CustomizeDialog(
                                     onBack = ::navigateBack,
                                 )
                             }
+                            CustomizePage.AppLock -> {
+                                AppLockPanel(
+                                    focusMemory = focusMemory,
+                                    appLockEnabled = appLockEnabled,
+                                    hasAppLockPin = hasAppLockPin,
+                                    lockedCount = lockedPackages.size,
+                                    totalApps = apps.size,
+                                    lockCustomize = lockCustomize,
+                                    lockAppActions = lockAppActions,
+                                    lockSystemSettings = lockSystemSettings,
+                                    lockSystemGuard = lockSystemGuard,
+                                    onSetupPin = { showPinSetup = true },
+                                    onToggleAppLockEnabled = onSetAppLockEnabled,
+                                    onOpenLockedApps = { navigateForward(CustomizePage.AppLockApps) },
+                                    onToggleLockSystemSettings = onSetLockSystemSettings,
+                                    onToggleLockCustomize = onSetLockCustomize,
+                                    onToggleLockAppActions = onSetLockAppActions,
+                                    onToggleLockSystemGuard = onSetLockSystemGuard,
+                                    onRemovePin = { showRemovePinConfirm = true },
+                                    onBack = ::navigateBack,
+                                )
+                            }
+                            CustomizePage.AppLockApps -> {
+                                AppLockAppsPanel(
+                                    focusMemory = focusMemory,
+                                    apps = apps,
+                                    lockedPackages = lockedPackages,
+                                    onSetPackageLocked = onSetPackageLocked,
+                                    onBack = ::navigateBack,
+                                )
+                            }
                         }
                     }
                 }
+            }
+            if (showPinVerifyForLock) {
+                PinVerifyDialog(
+                    subtitle = stringResource(R.string.pin_verify_subtitle_lock_settings),
+                    onVerified = {
+                        showPinVerifyForLock = false
+                        AppLockManager.setCustomizeUnlockedInSession(true)
+                        navigateForward(CustomizePage.AppLock)
+                    },
+                    onDismiss = { showPinVerifyForLock = false },
+                )
+            }
+            if (showPinSetup) {
+                val context = LocalContext.current
+                PinSetupDialog(
+                    onPinSaved = { pin ->
+                        onSetupAppLockPin(pin)
+                        showPinSetup = false
+                        Toast.makeText(context, context.getString(R.string.toast_pin_saved), Toast.LENGTH_SHORT).show()
+                    },
+                    onDismiss = { showPinSetup = false },
+                )
+            }
+            if (showRemovePinConfirm) {
+                val context = LocalContext.current
+                PinConfirmRemoveDialog(
+                    onConfirm = {
+                        onRemoveAppLockPin()
+                        showRemovePinConfirm = false
+                        Toast.makeText(context, context.getString(R.string.toast_pin_removed), Toast.LENGTH_SHORT).show()
+                    },
+                    onDismiss = { showRemovePinConfirm = false },
+                )
             }
         }
     }
@@ -705,11 +807,15 @@ private fun MainCustomizePanel(
     language: AppLanguage,
     themePalette: AppThemePalette,
     availableUpdateVersion: String,
+    appLockEnabled: Boolean,
+    hasAppLockPin: Boolean,
+    lockedCount: Int,
     onSetLanguage: (AppLanguage) -> Unit,
     onOpenAppearance: () -> Unit,
     onOpenControls: () -> Unit,
     onOpenLanguage: () -> Unit,
     onOpenSystem: () -> Unit,
+    onOpenAppLock: () -> Unit,
     onRefresh: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -793,6 +899,24 @@ private fun MainCustomizePanel(
                     trailingContent = if (hasUpdate) {
                         { NewBadgeWithChevron() }
                     } else null,
+                )
+            }
+            item(key = "group_app_lock") {
+                val lockSubtitle = when {
+                    !hasAppLockPin -> stringResource(R.string.group_app_lock_subtitle_off)
+                    !appLockEnabled -> stringResource(R.string.group_app_lock_subtitle_paused)
+                    else -> stringResource(R.string.group_app_lock_subtitle_on, lockedCount)
+                }
+                TvSettingsItem(
+                    icon = Icons.Outlined.Lock,
+                    title = stringResource(R.string.group_app_lock),
+                    subtitle = lockSubtitle,
+                    onClick = {
+                        focusController.saveNow("group_app_lock")
+                        onOpenAppLock()
+                    },
+                    modifier = focusController.modifierFor("group_app_lock"),
+                    showChevron = true,
                 )
             }
             item(key = "refresh") {
@@ -3239,4 +3363,234 @@ private fun remoteButtonIcon(button: RemoteButton): ImageVector = when (button) 
     RemoteButton.YOUTUBE -> Icons.Outlined.SmartDisplay
     RemoteButton.SETTINGS -> Icons.Outlined.Settings
     RemoteButton.PROFILE -> Icons.Outlined.AccountCircle
+}
+
+@Composable
+private fun AppLockPanel(
+    focusMemory: PanelFocusMemory,
+    appLockEnabled: Boolean,
+    hasAppLockPin: Boolean,
+    lockedCount: Int,
+    totalApps: Int,
+    lockCustomize: Boolean,
+    lockAppActions: Boolean,
+    lockSystemSettings: Boolean,
+    lockSystemGuard: Boolean,
+    onSetupPin: () -> Unit,
+    onToggleAppLockEnabled: (Boolean) -> Unit,
+    onOpenLockedApps: () -> Unit,
+    onToggleLockSystemSettings: (Boolean) -> Unit,
+    onToggleLockCustomize: (Boolean) -> Unit,
+    onToggleLockAppActions: (Boolean) -> Unit,
+    onToggleLockSystemGuard: (Boolean) -> Unit,
+    onRemovePin: () -> Unit,
+    onBack: () -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var accessibilityRunning by remember { mutableStateOf(ToolkitAccessibilityService.instance != null) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                accessibilityRunning = ToolkitAccessibilityService.instance != null
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val fallbackKey = if (hasAppLockPin) "lock_master" else "lock_setup_pin"
+    val focusController = rememberPanelFocus(
+        pageKey = CustomizePage.AppLock,
+        memory = focusMemory,
+        fallbackFirstKey = fallbackKey,
+    )
+    LaunchedEffect(hasAppLockPin) { focusController.restoreFocus() }
+
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.customize_title),
+            title = stringResource(R.string.group_app_lock),
+            subtitle = stringResource(R.string.app_lock_subtitle),
+        )
+        LazyColumn(
+            state = focusController.listState,
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            if (!hasAppLockPin) {
+                item(key = "lock_setup_pin") {
+                    TvSettingsItem(
+                        icon = Icons.Outlined.Lock,
+                        title = stringResource(R.string.app_lock_setup_pin),
+                        subtitle = stringResource(R.string.app_lock_setup_pin_subtitle),
+                        onClick = onSetupPin,
+                        modifier = focusController.modifierFor("lock_setup_pin"),
+                        showChevron = true,
+                    )
+                }
+            } else {
+                item(key = "lock_master") {
+                    TvSettingsItem(
+                        icon = Icons.Outlined.Security,
+                        title = stringResource(R.string.app_lock_master_toggle),
+                        subtitle = if (appLockEnabled) {
+                            stringResource(R.string.app_lock_master_on)
+                        } else {
+                            stringResource(R.string.app_lock_master_off)
+                        },
+                        onClick = { onToggleAppLockEnabled(!appLockEnabled) },
+                        modifier = focusController.modifierFor("lock_master"),
+                        trailingContent = { TvSwitch(checked = appLockEnabled) },
+                    )
+                }
+                item(key = "lock_apps") {
+                    TvSettingsItem(
+                        icon = Icons.Outlined.GridView,
+                        title = stringResource(R.string.app_lock_apps_title),
+                        subtitle = stringResource(R.string.app_lock_apps_subtitle, lockedCount, totalApps),
+                        onClick = {
+                            focusController.saveNow("lock_apps")
+                            onOpenLockedApps()
+                        },
+                        modifier = focusController.modifierFor("lock_apps"),
+                        showChevron = true,
+                    )
+                }
+                item(key = "lock_system_settings") {
+                    TvSettingsItem(
+                        icon = Icons.Outlined.Settings,
+                        title = stringResource(R.string.app_lock_system_settings_title),
+                        subtitle = stringResource(R.string.app_lock_system_settings_subtitle),
+                        onClick = { onToggleLockSystemSettings(!lockSystemSettings) },
+                        modifier = focusController.modifierFor("lock_system_settings"),
+                        trailingContent = { TvSwitch(checked = lockSystemSettings) },
+                    )
+                }
+                item(key = "lock_customize") {
+                    TvSettingsItem(
+                        icon = Icons.Outlined.Tune,
+                        title = stringResource(R.string.app_lock_customize_title),
+                        subtitle = stringResource(R.string.app_lock_customize_subtitle),
+                        onClick = { onToggleLockCustomize(!lockCustomize) },
+                        modifier = focusController.modifierFor("lock_customize"),
+                        trailingContent = { TvSwitch(checked = lockCustomize) },
+                    )
+                }
+                item(key = "lock_actions") {
+                    TvSettingsItem(
+                        icon = Icons.Outlined.Block,
+                        title = stringResource(R.string.app_lock_actions_title),
+                        subtitle = stringResource(R.string.app_lock_actions_subtitle),
+                        onClick = { onToggleLockAppActions(!lockAppActions) },
+                        modifier = focusController.modifierFor("lock_actions"),
+                        trailingContent = { TvSwitch(checked = lockAppActions) },
+                    )
+                }
+                item(key = "lock_system_guard") {
+                    val guardSubtitle = when {
+                        !lockSystemGuard -> stringResource(R.string.app_lock_system_guard_off)
+                        accessibilityRunning -> stringResource(R.string.app_lock_system_guard_active)
+                        else -> stringResource(R.string.app_lock_system_guard_needs_accessibility)
+                    }
+                    TvSettingsItem(
+                        icon = Icons.Outlined.AccessibilityNew,
+                        title = stringResource(R.string.app_lock_system_guard_title),
+                        subtitle = guardSubtitle,
+                        onClick = { onToggleLockSystemGuard(!lockSystemGuard) },
+                        modifier = focusController.modifierFor("lock_system_guard"),
+                        trailingContent = { TvSwitch(checked = lockSystemGuard) },
+                    )
+                }
+                if (lockSystemGuard && !accessibilityRunning) {
+                    item(key = "lock_open_accessibility") {
+                        TvSettingsItem(
+                            icon = Icons.Outlined.AccessibilityNew,
+                            title = stringResource(R.string.app_lock_open_accessibility),
+                            subtitle = stringResource(R.string.app_lock_open_accessibility_subtitle),
+                            onClick = { RemoteButtons.openAccessibilitySettings(context) },
+                            modifier = focusController.modifierFor("lock_open_accessibility"),
+                            showChevron = true,
+                        )
+                    }
+                }
+                item(key = "lock_change_pin") {
+                    TvSettingsItem(
+                        icon = Icons.Outlined.LockReset,
+                        title = stringResource(R.string.app_lock_change_pin),
+                        subtitle = stringResource(R.string.app_lock_change_pin_subtitle),
+                        onClick = onSetupPin,
+                        modifier = focusController.modifierFor("lock_change_pin"),
+                        showChevron = true,
+                    )
+                }
+                item(key = "lock_remove_pin") {
+                    TvSettingsItem(
+                        icon = Icons.Outlined.DeleteOutline,
+                        title = stringResource(R.string.app_lock_remove_pin),
+                        subtitle = stringResource(R.string.app_lock_remove_pin_subtitle),
+                        onClick = onRemovePin,
+                        modifier = focusController.modifierFor("lock_remove_pin"),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppLockAppsPanel(
+    focusMemory: PanelFocusMemory,
+    apps: List<LauncherApp>,
+    lockedPackages: Set<String>,
+    onSetPackageLocked: (String, Boolean) -> Unit,
+    onBack: () -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    val sortedApps = remember(apps) {
+        val (locked, unlocked) = apps.partition { it.packageName in lockedPackages }
+        locked.sortedBy { it.label.lowercase() } + unlocked.sortedBy { it.label.lowercase() }
+    }
+    val focusController = rememberPanelFocus(
+        pageKey = CustomizePage.AppLockApps,
+        memory = focusMemory,
+        fallbackFirstKey = sortedApps.firstOrNull()?.let { "lock_app_${it.packageName}" },
+    )
+    LaunchedEffect(sortedApps.isNotEmpty()) {
+        if (sortedApps.isNotEmpty()) focusController.restoreFocus()
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.group_app_lock),
+            title = stringResource(R.string.app_lock_apps_title),
+            subtitle = stringResource(R.string.app_lock_apps_panel_subtitle),
+        )
+        LazyColumn(
+            state = focusController.listState,
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            itemsIndexed(sortedApps, key = { _, app -> app.packageName }) { _, app ->
+                val isLocked = app.packageName in lockedPackages
+                val itemKey = "lock_app_${app.packageName}"
+                TvSettingsItem(
+                    appIcon = app.icon,
+                    title = app.label,
+                    subtitle = if (isLocked) {
+                        stringResource(R.string.app_lock_apps_locked_badge)
+                    } else {
+                        app.packageName
+                    },
+                    onClick = { onSetPackageLocked(app.packageName, !isLocked) },
+                    modifier = focusController.modifierFor(itemKey),
+                    trailingContent = { TvSwitch(checked = isLocked) },
+                )
+            }
+        }
+    }
 }

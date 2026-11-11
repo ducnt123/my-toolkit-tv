@@ -80,6 +80,7 @@ import com.tk.toolkit.tv.R
 import com.tk.toolkit.tv.launcher.LauncherViewModel
 import com.tk.toolkit.tv.launcher.data.AppActions
 import com.tk.toolkit.tv.launcher.data.AppActions.safeStart
+import com.tk.toolkit.tv.launcher.data.AppLockManager
 import com.tk.toolkit.tv.launcher.data.LauncherApp
 import com.tk.toolkit.tv.launcher.data.LocaleHelper
 import com.tk.toolkit.tv.launcher.data.TvInputs
@@ -134,6 +135,59 @@ private fun HomeScreenContent(
     var showHidden by remember { mutableStateOf(false) }
     var showCustomize by remember { mutableStateOf(false) }
     var showInputs by remember { mutableStateOf(false) }
+    var pendingPinAction by remember { mutableStateOf<PendingPinAction?>(null) }
+
+    val lockActive = state.appLockEnabled && state.hasAppLockPin
+    fun isPkgLocked(pkg: String): Boolean =
+        lockActive && (pkg in state.lockedPackages || (state.lockSystemSettings && pkg in AppLockManager.SETTINGS_PACKAGES))
+    val isSettingsLocked = lockActive && (
+        state.lockSystemSettings || AppLockManager.SETTINGS_PACKAGES.any { it in state.lockedPackages }
+    )
+    val isCustomizeLocked = lockActive && state.lockCustomize
+    val isAppActionsLocked = lockActive && state.lockAppActions
+
+    fun executePendingAction(action: PendingPinAction) {
+        when (action) {
+            is PendingPinAction.LaunchApp -> {
+                AppLockManager.grantTempUnlock(action.app.packageName)
+                context.safeStart(viewModel.launchIntent(action.app))
+            }
+            is PendingPinAction.LaunchWatch -> {
+                AppLockManager.grantTempUnlock(action.item.packageName)
+                viewModel.watchItemIntent(action.item)?.let { context.safeStart(it) }
+            }
+            PendingPinAction.OpenCustomize -> {
+                AppLockManager.setCustomizeUnlockedInSession(true)
+                showCustomize = true
+            }
+            PendingPinAction.OpenSystemSettings -> {
+                AppLockManager.grantTempUnlockSettings()
+                AppActions.openSystemSettings(context)
+            }
+            PendingPinAction.OpenNetworkSettings -> {
+                AppLockManager.grantTempUnlockSettings()
+                AppActions.openNetworkSettings(context)
+            }
+            is PendingPinAction.AppMove -> viewModel.startMove(action.app.packageName)
+            is PendingPinAction.AppToggleHidden -> viewModel.setHidden(action.app.packageName, action.hide)
+            is PendingPinAction.AppOpenInfo -> {
+                AppLockManager.grantTempUnlockSettings()
+                AppActions.openAppInfo(context, action.app.packageName)
+            }
+            is PendingPinAction.AppForceStop -> AppActions.forceStop(context, action.app.packageName)
+            is PendingPinAction.AppUninstall -> AppActions.uninstall(context, action.app.packageName)
+            is PendingPinAction.WatchRemove -> viewModel.removeWatchItem(action.item)
+            PendingPinAction.WatchClearAll -> viewModel.clearAllWatchItems()
+        }
+    }
+
+    fun launchAppGuarded(app: LauncherApp) {
+        if (isPkgLocked(app.packageName)) {
+            pendingPinAction = PendingPinAction.LaunchApp(app)
+        } else {
+            context.safeStart(viewModel.launchIntent(app))
+        }
+    }
     val tvInputs = rememberTvInputs(context)
     var lastFocusedKey by rememberSaveable { mutableStateOf<String?>(null) }
     var lastFocusedIndex by rememberSaveable { mutableStateOf(0) }
@@ -236,6 +290,8 @@ private fun HomeScreenContent(
         showHidden = false
         showCustomize = false
         showInputs = false
+        pendingPinAction = null
+        AppLockManager.setCustomizeUnlockedInSession(false)
         if (state.loaded) {
             focusJob?.cancel()
             focusFirstApp()
@@ -300,9 +356,15 @@ private fun HomeScreenContent(
         ) {
             ClockHeader(
                 language = state.language,
-                onOpenNetwork = { AppActions.openNetworkSettings(context) },
+                onOpenNetwork = {
+                    if (isSettingsLocked) pendingPinAction = PendingPinAction.OpenNetworkSettings
+                    else AppActions.openNetworkSettings(context)
+                },
                 onOpenAudioOutput = { AppActions.openAudioOutput(context) },
-                onOpenSettings = { AppActions.openSystemSettings(context) },
+                onOpenSettings = {
+                    if (isSettingsLocked) pendingPinAction = PendingPinAction.OpenSystemSettings
+                    else AppActions.openSystemSettings(context)
+                },
                 showInputsButton = tvInputs.isNotEmpty(),
                 onOpenInputs = { showInputs = true },
                 modifier = Modifier
@@ -351,7 +413,11 @@ private fun HomeScreenContent(
                                     onFocusInRowChanged = { watchRowFocused = it },
                                     onClick = { item ->
                                         if (state.movingKey == null) {
-                                            viewModel.watchItemIntent(item)?.let { context.safeStart(it) }
+                                            if (isPkgLocked(item.packageName)) {
+                                                pendingPinAction = PendingPinAction.LaunchWatch(item)
+                                            } else {
+                                                viewModel.watchItemIntent(item)?.let { context.safeStart(it) }
+                                            }
                                         }
                                     },
                                     onLongClick = { item -> if (state.movingKey == null) menuWatchItem = item },
@@ -390,11 +456,12 @@ private fun HomeScreenContent(
                                     ToolkitColors.focusedAmbientColor = app.accent
                                 },
                                 onClick = {
-                                    if (state.movingKey == null) context.safeStart(viewModel.launchIntent(app))
+                                    if (state.movingKey == null) launchAppGuarded(app)
                                 },
                                 onLongClick = { if (state.movingKey == null) menuApp = app },
                                 onMoveBy = viewModel::moveBy,
                                 onDrop = viewModel::endMove,
+                                isLocked = isPkgLocked(app.packageName),
                                 modifier = Modifier.animateItem(
                                     fadeInSpec = null,
                                     fadeOutSpec = null,
@@ -429,7 +496,15 @@ private fun HomeScreenContent(
                                     firstAppRowFocused = customizeOffset < columns
                                     ToolkitColors.focusedAmbientColor = ToolkitColors.GlowA
                                 },
-                                onClick = { if (state.movingKey == null) showCustomize = true },
+                                onClick = {
+                                    if (state.movingKey == null) {
+                                        if (isCustomizeLocked) {
+                                            pendingPinAction = PendingPinAction.OpenCustomize
+                                        } else {
+                                            showCustomize = true
+                                        }
+                                    }
+                                },
                                 badgeText = state.availableUpdateVersion.takeIf { it.isNotBlank() }?.let {
                                     stringResource(R.string.update_badge_new)
                                 },
@@ -464,10 +539,16 @@ private fun HomeScreenContent(
     if (showHidden && state.hiddenApps.isNotEmpty()) {
         HiddenAppsDialog(
             apps = state.hiddenApps,
+            lockedPackages = buildSet {
+                if (lockActive) {
+                    addAll(state.lockedPackages)
+                    if (state.lockSystemSettings) addAll(AppLockManager.SETTINGS_PACKAGES)
+                }
+            },
             onDismiss = { showHidden = false },
             onLaunch = { app ->
                 showHidden = false
-                context.safeStart(viewModel.launchIntent(app))
+                launchAppGuarded(app)
             },
             onLongPress = { menuApp = it },
         )
@@ -506,6 +587,13 @@ private fun HomeScreenContent(
             remoteButtons = state.remoteButtons,
             customKeyMappings = state.customKeyMappings,
             overrideHomeKey = state.overrideHomeKey,
+            appLockEnabled = state.appLockEnabled,
+            hasAppLockPin = state.hasAppLockPin,
+            lockedPackages = state.lockedPackages,
+            lockCustomize = state.lockCustomize,
+            lockAppActions = state.lockAppActions,
+            lockSystemSettings = state.lockSystemSettings,
+            lockSystemGuard = state.lockSystemGuard,
             onToggleWatchRow = viewModel::setWatchRowVisible,
             onSetAppColumns = viewModel::setAppColumns,
             onToggleBackToAmbient = viewModel::setBackToAmbientEnabled,
@@ -529,44 +617,136 @@ private fun HomeScreenContent(
             onUpsertCustomKeyMapping = viewModel::upsertCustomKeyMapping,
             onRemoveCustomKeyMapping = viewModel::removeCustomKeyMapping,
             onToggleOverrideHomeKey = viewModel::setOverrideHomeKeyEnabled,
+            onSetupAppLockPin = viewModel::setupAppLockPin,
+            onRemoveAppLockPin = viewModel::removeAppLockPin,
+            onSetAppLockEnabled = viewModel::setAppLockEnabled,
+            onSetPackageLocked = viewModel::setPackageLocked,
+            onSetLockCustomize = viewModel::setLockCustomizeEnabled,
+            onSetLockAppActions = viewModel::setLockAppActionsEnabled,
+            onSetLockSystemSettings = viewModel::setLockSystemSettingsEnabled,
+            onSetLockSystemGuard = viewModel::setLockSystemGuardEnabled,
             onRefresh = viewModel::refresh,
-            onDismiss = { showCustomize = false },
+            onDismiss = {
+                AppLockManager.setCustomizeUnlockedInSession(false)
+                showCustomize = false
+            },
         )
     }
 
     menuWatchItem?.let { item ->
+        val actionNeedsPin = isAppActionsLocked || isPkgLocked(item.packageName)
+        val clearAllNeedsPin = isAppActionsLocked || state.watchItems.any { isPkgLocked(it.packageName) }
         WatchActionsDialog(
             item = item,
             onDismiss = { menuWatchItem = null },
             onOpen = {
                 menuWatchItem = null
-                viewModel.watchItemIntent(item)?.let { context.safeStart(it) }
+                if (isPkgLocked(item.packageName)) {
+                    pendingPinAction = PendingPinAction.LaunchWatch(item)
+                } else {
+                    viewModel.watchItemIntent(item)?.let { context.safeStart(it) }
+                }
             },
             onRemove = {
                 menuWatchItem = null
-                viewModel.removeWatchItem(item)
+                if (actionNeedsPin) {
+                    pendingPinAction = PendingPinAction.WatchRemove(item)
+                } else {
+                    viewModel.removeWatchItem(item)
+                }
             },
             onClearAll = {
                 menuWatchItem = null
-                viewModel.clearAllWatchItems()
+                if (clearAllNeedsPin) {
+                    pendingPinAction = PendingPinAction.WatchClearAll
+                } else {
+                    viewModel.clearAllWatchItems()
+                }
             },
         )
     }
 
     menuApp?.let { app ->
         val isHidden = state.hiddenApps.any { it.packageName == app.packageName }
+        val actionNeedsPin = isAppActionsLocked || isPkgLocked(app.packageName)
         val dismiss = { menuApp = null }
         AppActionsDialog(
             app = app,
             isHidden = isHidden,
             onDismiss = dismiss,
-            onMove = { dismiss(); viewModel.startMove(app.packageName) },
-            onToggleHidden = { dismiss(); viewModel.setHidden(app.packageName, !isHidden) },
-            onAppInfo = { dismiss(); AppActions.openAppInfo(context, app.packageName) },
-            onForceStop = { dismiss(); AppActions.forceStop(context, app.packageName) },
-            onUninstall = { dismiss(); AppActions.uninstall(context, app.packageName) },
+            onMove = {
+                dismiss()
+                if (actionNeedsPin) pendingPinAction = PendingPinAction.AppMove(app)
+                else viewModel.startMove(app.packageName)
+            },
+            onToggleHidden = {
+                dismiss()
+                if (actionNeedsPin) pendingPinAction = PendingPinAction.AppToggleHidden(app, !isHidden)
+                else viewModel.setHidden(app.packageName, !isHidden)
+            },
+            onAppInfo = {
+                dismiss()
+                if (actionNeedsPin || isSettingsLocked) {
+                    pendingPinAction = PendingPinAction.AppOpenInfo(app)
+                } else {
+                    AppActions.openAppInfo(context, app.packageName)
+                }
+            },
+            onForceStop = {
+                dismiss()
+                if (actionNeedsPin) pendingPinAction = PendingPinAction.AppForceStop(app)
+                else AppActions.forceStop(context, app.packageName)
+            },
+            onUninstall = {
+                dismiss()
+                if (actionNeedsPin) pendingPinAction = PendingPinAction.AppUninstall(app)
+                else AppActions.uninstall(context, app.packageName)
+            },
         )
     }
+
+    pendingPinAction?.let { action ->
+        val subtitle = when (action) {
+            is PendingPinAction.LaunchApp -> stringResource(R.string.pin_verify_subtitle_app, action.app.label)
+            is PendingPinAction.LaunchWatch -> stringResource(R.string.pin_verify_subtitle_app, action.item.appName.ifBlank { action.item.title })
+            PendingPinAction.OpenCustomize -> stringResource(R.string.pin_verify_subtitle_customize)
+            PendingPinAction.OpenSystemSettings,
+            PendingPinAction.OpenNetworkSettings,
+            -> stringResource(R.string.pin_verify_subtitle_settings)
+            is PendingPinAction.AppMove,
+            is PendingPinAction.AppToggleHidden,
+            is PendingPinAction.AppOpenInfo,
+            is PendingPinAction.AppForceStop,
+            is PendingPinAction.AppUninstall,
+            is PendingPinAction.WatchRemove,
+            PendingPinAction.WatchClearAll,
+            -> stringResource(R.string.pin_verify_subtitle_action)
+        }
+        PinVerifyDialog(
+            subtitle = subtitle,
+            onVerified = {
+                val resolved = action
+                pendingPinAction = null
+                executePendingAction(resolved)
+            },
+            onDismiss = { pendingPinAction = null },
+        )
+    }
+}
+
+private sealed interface PendingPinAction {
+    data class LaunchApp(val app: LauncherApp) : PendingPinAction
+    data class LaunchWatch(val item: WatchItem) : PendingPinAction
+    data object OpenCustomize : PendingPinAction
+    data object OpenSystemSettings : PendingPinAction
+    data object OpenNetworkSettings : PendingPinAction
+    data class AppMove(val app: LauncherApp) : PendingPinAction
+    data class AppToggleHidden(val app: LauncherApp, val hide: Boolean) : PendingPinAction
+    data class AppOpenInfo(val app: LauncherApp) : PendingPinAction
+    data class AppForceStop(val app: LauncherApp) : PendingPinAction
+    data class AppUninstall(val app: LauncherApp) : PendingPinAction
+    data class WatchRemove(val item: WatchItem) : PendingPinAction
+    data object WatchClearAll : PendingPinAction
 }
 
 @Composable

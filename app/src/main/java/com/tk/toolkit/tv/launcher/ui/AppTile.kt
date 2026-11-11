@@ -20,6 +20,7 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.OpenWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -70,6 +71,7 @@ fun AppTile(
     onMoveBy: (Int) -> Unit,
     onDrop: () -> Unit,
     modifier: Modifier = Modifier,
+    isLocked: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
     val bringIntoView = remember { BringIntoViewRequester() }
@@ -123,6 +125,24 @@ fun AppTile(
                         )
                     } else {
                         IconTileContent(app)
+                    }
+                    if (isLocked && !isMoving) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .size(24.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.Black.copy(alpha = 0.65f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                Icons.Outlined.Lock,
+                                contentDescription = null,
+                                tint = ToolkitColors.OnSurface.copy(alpha = 0.9f),
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
                     }
                     if (isMoving) MoveOverlay()
                 }

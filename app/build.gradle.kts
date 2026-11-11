@@ -16,8 +16,8 @@ android {
         // are not blocked from enabling the Accessibility Service by Restricted Settings.
         //noinspection ExpiredTargetSdkVersion
         targetSdk = 32
-        versionCode = 10
-        versionName = "1.4.5"
+        versionCode = 11
+        versionName = "1.4.6"
 
     }
 

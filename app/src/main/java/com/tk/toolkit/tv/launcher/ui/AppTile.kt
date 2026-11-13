@@ -43,10 +43,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Border
 import androidx.tv.material3.Card
@@ -72,6 +75,7 @@ fun AppTile(
     onDrop: () -> Unit,
     modifier: Modifier = Modifier,
     isLocked: Boolean = false,
+    onPositioned: ((Rect) -> Unit)? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
     val bringIntoView = remember { BringIntoViewRequester() }
@@ -101,6 +105,7 @@ fun AppTile(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(16f / 9f)
+                    .onGloballyPositioned { onPositioned?.invoke(it.boundsInWindow()) }
                     .bringIntoViewRequester(bringIntoView)
                     .focusRequester(focusRequester)
                     .onFocusChanged {

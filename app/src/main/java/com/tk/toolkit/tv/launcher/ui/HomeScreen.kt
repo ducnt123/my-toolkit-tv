@@ -10,6 +10,7 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
@@ -61,10 +62,17 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -131,6 +139,9 @@ private fun HomeScreenContent(
     var focusJob by remember { mutableStateOf<Job?>(null) }
 
     var menuApp by remember { mutableStateOf<LauncherApp?>(null) }
+    var menuAnchor by remember { mutableStateOf<Rect?>(null) }
+    // Window bounds of each app tile, so the actions dropdown can open right under it.
+    val tileBounds = remember { mutableMapOf<String, Rect>() }
     var menuWatchItem by remember { mutableStateOf<WatchItem?>(null) }
     var showHidden by remember { mutableStateOf(false) }
     var showCustomize by remember { mutableStateOf(false) }
@@ -458,10 +469,16 @@ private fun HomeScreenContent(
                                 onClick = {
                                     if (state.movingKey == null) launchAppGuarded(app)
                                 },
-                                onLongClick = { if (state.movingKey == null) menuApp = app },
+                                onLongClick = {
+                                    if (state.movingKey == null) {
+                                        menuAnchor = tileBounds[app.packageName]
+                                        menuApp = app
+                                    }
+                                },
                                 onMoveBy = viewModel::moveBy,
                                 onDrop = viewModel::endMove,
                                 isLocked = isPkgLocked(app.packageName),
+                                onPositioned = { tileBounds[app.packageName] = it },
                                 modifier = Modifier.animateItem(
                                     fadeInSpec = null,
                                     fadeOutSpec = null,
@@ -550,7 +567,12 @@ private fun HomeScreenContent(
                 showHidden = false
                 launchAppGuarded(app)
             },
-            onLongPress = { menuApp = it },
+            onLongPress = {
+                // Hidden apps live in their own dialog window, so their tile bounds don't map
+                // onto the home window; show the menu centered instead.
+                menuAnchor = null
+                menuApp = it
+            },
         )
     }
 
@@ -666,13 +688,60 @@ private fun HomeScreenContent(
         )
     }
 
+    var activeAnchor by remember { mutableStateOf<Rect?>(null) }
+    if (menuAnchor != null) {
+        activeAnchor = menuAnchor
+    }
+
+    val menuScrimAlpha by animateFloatAsState(
+        targetValue = if (menuApp != null) 0.55f else 0f,
+        animationSpec = tween(durationMillis = 180),
+        label = "menuScrimAlpha",
+    )
+    if (menuScrimAlpha > 0.005f) {
+        val anchor = menuAnchor ?: activeAnchor
+        val density = LocalDensity.current
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(4f)
+        ) {
+            if (anchor != null) {
+                val pad = with(density) { 1.5.dp.toPx() }
+                val cornerRadiusPx = with(density) { 15.dp.toPx() }
+                val path = Path().apply {
+                    fillType = PathFillType.EvenOdd
+                    addRect(Rect(0f, 0f, size.width, size.height))
+                    addRoundRect(
+                        RoundRect(
+                            left = anchor.left - pad,
+                            top = anchor.top - pad,
+                            right = anchor.right + pad,
+                            bottom = anchor.bottom + pad,
+                            radiusX = cornerRadiusPx,
+                            radiusY = cornerRadiusPx,
+                        )
+                    )
+                }
+                drawPath(path, Color.Black.copy(alpha = menuScrimAlpha))
+            } else {
+                drawRect(Color.Black.copy(alpha = menuScrimAlpha))
+            }
+        }
+    }
+
     menuApp?.let { app ->
         val isHidden = state.hiddenApps.any { it.packageName == app.packageName }
         val actionNeedsPin = isAppActionsLocked || isPkgLocked(app.packageName)
-        val dismiss = { menuApp = null }
+        val dismiss = {
+            menuApp = null
+            menuAnchor = null
+        }
         AppActionsDialog(
             app = app,
             isHidden = isHidden,
+            anchorBounds = menuAnchor,
+            safeMarginX = GRID_PADDING_X,
             onDismiss = dismiss,
             onMove = {
                 dismiss()

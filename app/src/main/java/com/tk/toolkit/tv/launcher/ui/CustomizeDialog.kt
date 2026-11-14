@@ -2498,6 +2498,7 @@ private fun AutoLaunchPanel(
                 ActionChoiceItem(
                     icon = Icons.Outlined.Input,
                     appIcon = input.icon,
+                    appIconPadded = true,
                     title = title,
                     subtitle = if (selected) stringResource(R.string.common_selected)
                     else stringResource(R.string.auto_launch_input_subtitle, input.stateLabel(context)),
@@ -3232,6 +3233,7 @@ private fun TvSettingsItem(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     appIcon: androidx.compose.ui.graphics.ImageBitmap? = null,
+    appIconPadded: Boolean = false,
     showChevron: Boolean = false,
     danger: Boolean = false,
     trailingContent: (@Composable () -> Unit)? = null,
@@ -3244,13 +3246,33 @@ private fun TvSettingsItem(
         leadingContent = if (appIcon != null || icon != null) {
             {
                 if (appIcon != null) {
-                    Image(
-                        appIcon,
-                        contentDescription = title,
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(IconBoxShape),
-                    )
+                    if (appIconPadded) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .background(tint.copy(alpha = 0.08f), IconBoxShape)
+                                .clip(IconBoxShape),
+                        ) {
+                            Image(
+                                appIcon,
+                                contentDescription = title,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(6.dp),
+                            )
+                        }
+                    } else {
+                        Image(
+                            appIcon,
+                            contentDescription = title,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(IconBoxShape),
+                        )
+                    }
                 } else if (icon != null) {
                     Box(
                         contentAlignment = Alignment.Center,
@@ -3318,6 +3340,7 @@ private fun ActionChoiceItem(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     appIcon: androidx.compose.ui.graphics.ImageBitmap? = null,
+    appIconPadded: Boolean = false,
 ) {
     TvSettingsItem(
         title = title,
@@ -3326,6 +3349,7 @@ private fun ActionChoiceItem(
         modifier = modifier,
         icon = icon,
         appIcon = appIcon,
+        appIconPadded = appIconPadded,
         trailingContent = if (selected) {
             {
                 Box(

@@ -2,6 +2,7 @@ package com.tk.toolkit.tv.launcher.data
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
 import android.media.tv.TvContract
 import android.media.tv.TvInputInfo
@@ -232,10 +233,52 @@ object TvInputs {
     }
 
     private fun Drawable.toBitmapSafely(): ImageBitmap? = runCatching {
-        val w = intrinsicWidth.takeIf { it in 1..256 } ?: 72
-        val h = intrinsicHeight.takeIf { it in 1..256 } ?: 72
-        toBitmap(w, h).asImageBitmap()
+        val rawW = intrinsicWidth
+        val rawH = intrinsicHeight
+        val maxDim = 256
+        val (w, h) = if (rawW > 0 && rawH > 0) {
+            val scale = minOf(1f, maxDim.toFloat() / maxOf(rawW, rawH))
+            (rawW * scale).toInt().coerceAtLeast(1) to (rawH * scale).toInt().coerceAtLeast(1)
+        } else {
+            96 to 96
+        }
+        toBitmap(w, h).trimTransparentBounds().asImageBitmap()
     }.getOrNull()
+
+    /**
+     * Crops surrounding transparent margins (common on OEM TV input icons such as Sony Bravia,
+     * which center a square icon inside a wide 16:9 transparent canvas) without changing the
+     * 1:1 pixel aspect ratio of the visible graphic.
+     */
+    private fun Bitmap.trimTransparentBounds(): Bitmap {
+        val w = width
+        val h = height
+        if (w <= 1 || h <= 1) return this
+        val pixels = IntArray(w * h)
+        getPixels(pixels, 0, w, 0, 0, w, h)
+
+        var minX = w
+        var minY = h
+        var maxX = -1
+        var maxY = -1
+        for (y in 0 until h) {
+            val rowOffset = y * w
+            for (x in 0 until w) {
+                val alpha = pixels[rowOffset + x] ushr 24
+                if (alpha > 8) {
+                    if (x < minX) minX = x
+                    if (x > maxX) maxX = x
+                    if (y < minY) minY = y
+                    if (y > maxY) maxY = y
+                }
+            }
+        }
+        if (maxX < minX || maxY < minY) return this
+        val cropW = maxX - minX + 1
+        val cropH = maxY - minY + 1
+        if (cropW == w && cropH == h) return this
+        return Bitmap.createBitmap(this, minX, minY, cropW, cropH)
+    }
 
     private val IGNORED_PACKAGES = setOf(
         "com.google.android.videos",

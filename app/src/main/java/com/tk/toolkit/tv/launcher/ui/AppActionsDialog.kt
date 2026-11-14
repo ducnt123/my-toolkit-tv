@@ -129,8 +129,20 @@ fun AppActionsDialog(
     val marginXPx = with(density) { safeMarginX.roundToPx() }
     val marginYPx = with(density) { safeMarginY.roundToPx() }
 
-    val spaceAbovePx = (anchorBounds.top.roundToInt() - marginYPx - gapPx).coerceAtLeast(0)
-    val spaceBelowPx = (screenHeightPx - anchorBounds.bottom.roundToInt() - marginYPx - gapPx).coerceAtLeast(0)
+    // Account for the focused banner's 1.08x scale (4% expansion on each side).
+    val visualAnchor = remember(anchorBounds) {
+        val dx = anchorBounds.width * 0.04f
+        val dy = anchorBounds.height * 0.04f
+        Rect(
+            left = anchorBounds.left - dx,
+            top = anchorBounds.top - dy,
+            right = anchorBounds.right + dx,
+            bottom = anchorBounds.bottom + dy,
+        )
+    }
+
+    val spaceAbovePx = (visualAnchor.top.roundToInt() - marginYPx - gapPx).coerceAtLeast(0)
+    val spaceBelowPx = (screenHeightPx - visualAnchor.bottom.roundToInt() - marginYPx - gapPx).coerceAtLeast(0)
 
     // Full menu is ~240dp. If below doesn't have 240dp but above has more, prefer above.
     val estimatedHeightPx = with(density) { 240.dp.roundToPx() }
@@ -140,17 +152,17 @@ fun AppActionsDialog(
         else -> spaceAbovePx > spaceBelowPx
     }
 
-    var placedAbove by remember(anchorBounds) { mutableStateOf(preferAbove) }
-    var arrowX by remember(anchorBounds) { mutableIntStateOf(with(density) { (MENU_WIDTH / 2).roundToPx() }) }
+    var placedAbove by remember(visualAnchor) { mutableStateOf(preferAbove) }
+    var arrowX by remember(visualAnchor) { mutableIntStateOf(with(density) { (MENU_WIDTH / 2).roundToPx() }) }
 
     val availableHeightDp = with(density) {
         val availablePx = if (placedAbove) spaceAbovePx else spaceBelowPx
         (availablePx.toDp() - 50.dp).coerceAtLeast(120.dp)
     }
 
-    val positionProvider = remember(anchorBounds, density, preferAbove, marginXPx, marginYPx) {
+    val positionProvider = remember(visualAnchor, density, preferAbove, marginXPx, marginYPx) {
         DropdownPositionProvider(
-            anchor = anchorBounds,
+            anchor = visualAnchor,
             gapPx = gapPx,
             marginXPx = marginXPx,
             marginYPx = marginYPx,

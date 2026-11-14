@@ -59,6 +59,7 @@ import com.tk.toolkit.tv.launcher.data.LauncherApp
 import com.tk.toolkit.tv.ui.theme.ToolkitColors
 
 private val TileShape = RoundedCornerShape(14.dp)
+internal val AppTileShape = TileShape
 
 @Composable
 fun AppTile(
@@ -120,37 +121,7 @@ fun AppTile(
                 ),
                 colors = CardDefaults.colors(containerColor = ToolkitColors.Surface),
             ) {
-                Box(Modifier.fillMaxSize()) {
-                    if (app.banner != null) {
-                        Image(
-                            app.banner,
-                            contentDescription = app.label,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    } else {
-                        IconTileContent(app)
-                    }
-                    if (isLocked && !isMoving) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(8.dp)
-                                .size(24.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color.Black.copy(alpha = 0.65f)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                Icons.Outlined.Lock,
-                                contentDescription = null,
-                                tint = ToolkitColors.OnSurface.copy(alpha = 0.9f),
-                                modifier = Modifier.size(14.dp),
-                            )
-                        }
-                    }
-                    if (isMoving) MoveOverlay()
-                }
+                AppTileBannerContent(app = app, isLocked = isLocked, isMoving = isMoving)
             }
         }
         // Name of the focused app, centered under its banner. Space is always reserved so
@@ -168,6 +139,45 @@ fun AppTile(
                 .padding(top = 10.dp)
                 .alpha(labelAlpha),
         )
+    }
+}
+
+@Composable
+internal fun AppTileBannerContent(
+    app: LauncherApp,
+    isLocked: Boolean,
+    isMoving: Boolean = false,
+) {
+    Box(Modifier.fillMaxSize()) {
+        if (app.banner != null) {
+            Image(
+                app.banner,
+                contentDescription = app.label,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            IconTileContent(app)
+        }
+        if (isLocked && !isMoving) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .size(24.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.Black.copy(alpha = 0.65f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Outlined.Lock,
+                    contentDescription = null,
+                    tint = ToolkitColors.OnSurface.copy(alpha = 0.9f),
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+        }
+        if (isMoving) MoveOverlay()
     }
 }
 
@@ -227,7 +237,7 @@ internal fun MoveOverlay() {
 }
 
 /** The app's accent pushed bright enough to read as light on a dark background. */
-private fun glowColor(accent: Color): Color {
+internal fun glowColor(accent: Color): Color {
     val hsv = FloatArray(3)
     android.graphics.Color.colorToHSV(accent.toArgb(), hsv)
     hsv[1] = hsv[1].coerceAtMost(0.85f)
@@ -236,7 +246,9 @@ private fun glowColor(accent: Color): Color {
 }
 
 /** Soft halo in [color] that follows the tile's rounded shape, drawn only while [alpha] > 0. */
-internal fun Modifier.accentGlow(color: Color, alpha: Float) = drawWithCache {
+internal fun Modifier.accentGlow(color: Color, alpha: Float) = accentGlow(color) { alpha }
+
+internal fun Modifier.accentGlow(color: Color, alphaProvider: () -> Float) = drawWithCache {
     // Matches the focused card's 1.08 scale plus a little spread.
     val spread = size.width * 0.04f + 6.dp.toPx()
     val radius = 14.dp.toPx() * 1.08f + spread / 2
@@ -244,6 +256,7 @@ internal fun Modifier.accentGlow(color: Color, alpha: Float) = drawWithCache {
         maskFilter = BlurMaskFilter(26.dp.toPx(), BlurMaskFilter.Blur.NORMAL)
     }
     onDrawBehind {
+        val alpha = alphaProvider()
         if (alpha <= 0f) return@onDrawBehind
         paint.color = color.copy(alpha = 0.4f * alpha).toArgb()
         drawIntoCanvas {

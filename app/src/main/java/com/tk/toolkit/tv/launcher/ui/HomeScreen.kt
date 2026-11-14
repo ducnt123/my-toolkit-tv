@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -43,6 +44,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
@@ -62,14 +65,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -77,9 +77,11 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import kotlin.math.roundToInt
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.MaterialTheme
@@ -688,47 +690,15 @@ private fun HomeScreenContent(
         )
     }
 
-    var activeAnchor by remember { mutableStateOf<Rect?>(null) }
-    if (menuAnchor != null) {
-        activeAnchor = menuAnchor
-    }
-
-    val menuScrimAlpha by animateFloatAsState(
-        targetValue = if (menuApp != null) 0.55f else 0f,
-        animationSpec = tween(durationMillis = 180),
-        label = "menuScrimAlpha",
+    AppMenuSpotlightOverlay(
+        app = menuApp,
+        anchor = menuAnchor,
+        isLocked = menuApp?.let { isPkgLocked(it.packageName) } == true,
+        visibleAppPackages = remember(state.apps, state.movingKey) {
+            if (state.movingKey != null) emptySet()
+            else state.apps.mapTo(HashSet(state.apps.size)) { it.packageName }
+        },
     )
-    if (menuScrimAlpha > 0.005f) {
-        val anchor = menuAnchor ?: activeAnchor
-        val density = LocalDensity.current
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .zIndex(4f)
-        ) {
-            if (anchor != null) {
-                val pad = with(density) { 1.5.dp.toPx() }
-                val cornerRadiusPx = with(density) { 15.dp.toPx() }
-                val path = Path().apply {
-                    fillType = PathFillType.EvenOdd
-                    addRect(Rect(0f, 0f, size.width, size.height))
-                    addRoundRect(
-                        RoundRect(
-                            left = anchor.left - pad,
-                            top = anchor.top - pad,
-                            right = anchor.right + pad,
-                            bottom = anchor.bottom + pad,
-                            radiusX = cornerRadiusPx,
-                            radiusY = cornerRadiusPx,
-                        )
-                    )
-                }
-                drawPath(path, Color.Black.copy(alpha = menuScrimAlpha))
-            } else {
-                drawRect(Color.Black.copy(alpha = menuScrimAlpha))
-            }
-        }
-    }
 
     menuApp?.let { app ->
         val isHidden = state.hiddenApps.any { it.packageName == app.packageName }
@@ -897,5 +867,82 @@ private fun LoadingIndicator() {
             style = MaterialTheme.typography.bodyMedium,
             color = ToolkitColors.OnSurfaceMuted,
         )
+    }
+}
+
+/**
+ * Dims the surrounding screen while keeping the selected app banner and its glow halo fully
+ * highlighted above the scrim. Animation reads happen exclusively in the draw/graphicsLayer
+ * phases so the home grid never recomposes during open/close transitions.
+ */
+@Composable
+private fun AppMenuSpotlightOverlay(
+    app: LauncherApp?,
+    anchor: Rect?,
+    isLocked: Boolean,
+    visibleAppPackages: Set<String>,
+) {
+    var activeApp by remember { mutableStateOf<LauncherApp?>(null) }
+    var activeAnchor by remember { mutableStateOf<Rect?>(null) }
+    var activeLocked by remember { mutableStateOf(false) }
+    if (app != null) {
+        activeApp = app
+        activeAnchor = anchor
+        activeLocked = isLocked
+    }
+
+    val progress = animateFloatAsState(
+        targetValue = if (app != null) 1f else 0f,
+        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+        label = "menuSpotlightProgress",
+    )
+    val shouldRender by remember {
+        derivedStateOf { app != null || progress.value > 0.001f }
+    }
+    if (!shouldRender) return
+
+    val currentApp = activeApp ?: return
+    val currentAnchor = activeAnchor
+    val keepSolid = currentApp.packageName in visibleAppPackages
+    val density = LocalDensity.current
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .zIndex(4f)
+            .drawBehind {
+                drawRect(Color.Black.copy(alpha = 0.55f * progress.value))
+            }
+    ) {
+        if (currentAnchor != null) {
+            val glow = remember(currentApp.accent) { glowColor(currentApp.accent) }
+            val widthDp = with(density) { currentAnchor.width.toDp() }
+            val heightDp = with(density) { currentAnchor.height.toDp() }
+            Box(
+                Modifier
+                    .offset {
+                        IntOffset(
+                            currentAnchor.left.roundToInt(),
+                            currentAnchor.top.roundToInt(),
+                        )
+                    }
+                    .size(widthDp, heightDp)
+                    .accentGlow(glow) { progress.value }
+                    .graphicsLayer {
+                        scaleX = 1.08f
+                        scaleY = 1.08f
+                        alpha = if (keepSolid) 1f else progress.value
+                        shape = AppTileShape
+                        clip = true
+                    }
+                    .background(ToolkitColors.Surface)
+            ) {
+                AppTileBannerContent(
+                    app = currentApp,
+                    isLocked = activeLocked,
+                    isMoving = false,
+                )
+            }
+        }
     }
 }

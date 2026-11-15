@@ -369,6 +369,8 @@ private fun HomeScreenContent(
         ) {
             ClockHeader(
                 language = state.language,
+                shortcutOrder = state.headerShortcutsOrder,
+                visibleShortcuts = state.visibleHeaderShortcuts,
                 onOpenNetwork = {
                     if (isSettingsLocked) pendingPinAction = PendingPinAction.OpenNetworkSettings
                     else AppActions.openNetworkSettings(context)
@@ -618,6 +620,8 @@ private fun HomeScreenContent(
             lockAppActions = state.lockAppActions,
             lockSystemSettings = state.lockSystemSettings,
             lockSystemGuard = state.lockSystemGuard,
+            headerShortcutsOrder = state.headerShortcutsOrder,
+            visibleHeaderShortcuts = state.visibleHeaderShortcuts,
             onToggleWatchRow = viewModel::setWatchRowVisible,
             onSetAppColumns = viewModel::setAppColumns,
             onToggleBackToAmbient = viewModel::setBackToAmbientEnabled,
@@ -649,6 +653,8 @@ private fun HomeScreenContent(
             onSetLockAppActions = viewModel::setLockAppActionsEnabled,
             onSetLockSystemSettings = viewModel::setLockSystemSettingsEnabled,
             onSetLockSystemGuard = viewModel::setLockSystemGuardEnabled,
+            onSetHeaderShortcutsOrder = viewModel::setHeaderShortcutsOrder,
+            onToggleHeaderShortcutVisible = viewModel::setHeaderShortcutVisible,
             onRefresh = viewModel::refresh,
             onDismiss = {
                 AppLockManager.setCustomizeUnlockedInSession(false)

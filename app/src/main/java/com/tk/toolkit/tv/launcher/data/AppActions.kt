@@ -3,6 +3,7 @@ package com.tk.toolkit.tv.launcher.data
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
 import androidx.core.net.toUri
@@ -71,10 +72,19 @@ object AppActions {
     }
 
     /**
-     * Google TV's own "Audio output" picker (TV speakers, HDMI, Bluetooth). It lives in SystemUI;
-     * if a build doesn't have it, fall back to Display & Sound settings.
+     * Google TV's own "Audio output" picker (TV speakers, HDMI, Bluetooth). On Sony Bravia TVs,
+     * triggers Sony's native Quick Settings bottom bar focused directly on "Speakers" (Audio Output).
+     * On other TVs, attempts SystemUI's media output dialog or falls back to Display & Sound settings.
      */
     fun openAudioOutput(context: Context) {
+        if (Build.MANUFACTURER.contains("Sony", ignoreCase = true) || Build.BRAND.contains("Sony", ignoreCase = true)) {
+            val sonyIntent = Intent("com.sony.dtv.systemui.action.SHOW_QUICK_SETTINGS").apply {
+                setPackage("com.android.systemui")
+                putExtra("com.sony.dtv.systemui.extra.ITEM_TO_FOCUS", "Speakers")
+            }
+            context.sendBroadcast(sonyIntent)
+            return
+        }
         val picker = Intent("com.android.systemui.TV_MEDIA_OUTPUT_DIALOG")
             .setPackage("com.android.systemui")
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

@@ -72,6 +72,28 @@ class LauncherPrefs(context: Context) {
         prefs.edit { putInt(KEY_APP_COLUMNS, columns.coerceIn(4, 6)) }
     }
 
+    fun headerShortcutsOrder(): List<HeaderShortcut> {
+        val raw = prefs.getString(KEY_HEADER_SHORTCUTS_ORDER, null) ?: return HeaderShortcut.DEFAULT_ORDER
+        val parsed = raw.split(",").mapNotNull { HeaderShortcut.fromId(it.trim()) }
+        val missing = HeaderShortcut.DEFAULT_ORDER.filterNot { it in parsed }
+        return parsed + missing
+    }
+
+    fun setHeaderShortcutsOrder(order: List<HeaderShortcut>) {
+        prefs.edit { putString(KEY_HEADER_SHORTCUTS_ORDER, order.joinToString(",") { it.id }) }
+    }
+
+    fun visibleHeaderShortcuts(): Set<String> {
+        return prefs.getStringSet(KEY_HEADER_SHORTCUTS_VISIBLE, null)
+            ?: HeaderShortcut.DEFAULT_ORDER.map { it.id }.toSet()
+    }
+
+    fun setHeaderShortcutVisible(shortcut: HeaderShortcut, visible: Boolean) {
+        val current = visibleHeaderShortcuts().toMutableSet()
+        if (visible) current.add(shortcut.id) else current.remove(shortcut.id)
+        prefs.edit { putStringSet(KEY_HEADER_SHORTCUTS_VISIBLE, current) }
+    }
+
     fun isBackToAmbientEnabled(): Boolean = prefs.getBoolean(KEY_BACK_TO_AMBIENT, true)
 
     fun setBackToAmbientEnabled(enabled: Boolean) {
@@ -386,6 +408,8 @@ class LauncherPrefs(context: Context) {
             KEY_CUSTOM_REMOTE_KEYS,
             JSONArray(customKeyMappings().map { "${it.keyCode}:${it.scanCode}:${it.target}" }),
         )
+        root.put(KEY_HEADER_SHORTCUTS_ORDER, headerShortcutsOrder().joinToString(",") { it.id })
+        root.put(KEY_HEADER_SHORTCUTS_VISIBLE, JSONArray(visibleHeaderShortcuts().toList()))
         root.put(KEY_APP_LOCK_PACKAGES, JSONArray(lockedPackages().toList()))
         root.put(KEY_APP_LOCK_CUSTOMIZE, isLockCustomizeEnabled())
         root.put(KEY_APP_LOCK_APP_ACTIONS, isLockAppActionsEnabled())
@@ -445,6 +469,12 @@ class LauncherPrefs(context: Context) {
             root.optJSONArray(KEY_CUSTOM_REMOTE_KEYS)?.toStringList()?.let {
                 putString(KEY_CUSTOM_REMOTE_KEYS, it.joinToString("\n"))
             }
+            if (root.has(KEY_HEADER_SHORTCUTS_ORDER)) {
+                putString(KEY_HEADER_SHORTCUTS_ORDER, root.optString(KEY_HEADER_SHORTCUTS_ORDER))
+            }
+            root.optJSONArray(KEY_HEADER_SHORTCUTS_VISIBLE)?.toStringList()?.let {
+                putStringSet(KEY_HEADER_SHORTCUTS_VISIBLE, it.toSet())
+            }
             root.optJSONArray(KEY_APP_LOCK_PACKAGES)?.toStringList()?.let {
                 putStringSet(KEY_APP_LOCK_PACKAGES, it.toSet())
             }
@@ -490,6 +520,8 @@ class LauncherPrefs(context: Context) {
         private const val KEY_AVAILABLE_UPDATE_VERSION = "available_update_version"
         private const val KEY_OVERRIDE_HOME = "override_home"
         private const val KEY_ADVANCED_VISIBLE = "advanced_settings_visible"
+        private const val KEY_HEADER_SHORTCUTS_ORDER = "header_shortcuts_order"
+        private const val KEY_HEADER_SHORTCUTS_VISIBLE = "header_shortcuts_visible"
         private const val KEY_REMOTE_TARGET_PREFIX = "remote_target_"
         private const val KEY_REMOTE_KEYCODE_PREFIX = "remote_keycode_"
         private const val KEY_REMOTE_SCANCODE_PREFIX = "remote_scancode_"

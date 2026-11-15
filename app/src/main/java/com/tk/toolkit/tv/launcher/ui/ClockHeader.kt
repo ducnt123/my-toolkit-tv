@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Input
+import androidx.compose.material.icons.automirrored.outlined.Input
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SettingsEthernet
 import androidx.compose.material.icons.outlined.Speaker
@@ -51,6 +51,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.tk.toolkit.tv.R
 import com.tk.toolkit.tv.launcher.data.AppLanguage
+import com.tk.toolkit.tv.launcher.data.HeaderShortcut
 import com.tk.toolkit.tv.ui.theme.ToolkitColors
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
@@ -74,6 +75,8 @@ fun ClockHeader(
     modifier: Modifier = Modifier,
     showInputsButton: Boolean = false,
     onOpenInputs: () -> Unit = {},
+    shortcutOrder: List<HeaderShortcut> = HeaderShortcut.DEFAULT_ORDER,
+    visibleShortcuts: Set<String> = HeaderShortcut.DEFAULT_ORDER.map { it.id }.toSet(),
 ) {
     val context = LocalContext.current
     val locale = language.locale
@@ -119,14 +122,25 @@ fun ClockHeader(
             Text(clock.date, style = MaterialTheme.typography.bodyLarge, color = ToolkitColors.OnSurfaceMuted)
         }
         Spacer(Modifier.weight(1f))
-        if (showInputsButton) {
-            HeaderButton(Icons.Outlined.Input, stringResource(R.string.header_inputs), onOpenInputs)
-            Spacer(Modifier.width(12.dp))
+        for (shortcut in shortcutOrder) {
+            if (shortcut.id !in visibleShortcuts) continue
+            when (shortcut) {
+                HeaderShortcut.INPUTS -> {
+                    if (showInputsButton) {
+                        HeaderButton(Icons.AutoMirrored.Outlined.Input, stringResource(R.string.header_inputs), onOpenInputs)
+                        Spacer(Modifier.width(12.dp))
+                    }
+                }
+                HeaderShortcut.NETWORK -> {
+                    HeaderButton(networkType.icon, stringResource(networkType.labelRes), onOpenNetwork)
+                    Spacer(Modifier.width(12.dp))
+                }
+                HeaderShortcut.AUDIO_OUTPUT -> {
+                    HeaderButton(Icons.Outlined.Speaker, stringResource(R.string.header_audio_output), onOpenAudioOutput)
+                    Spacer(Modifier.width(12.dp))
+                }
+            }
         }
-        HeaderButton(networkType.icon, stringResource(networkType.labelRes), onOpenNetwork)
-        Spacer(Modifier.width(12.dp))
-        HeaderButton(Icons.Outlined.Speaker, stringResource(R.string.header_audio_output), onOpenAudioOutput)
-        Spacer(Modifier.width(12.dp))
         HeaderButton(Icons.Outlined.Settings, stringResource(R.string.header_settings), onOpenSettings)
     }
 }

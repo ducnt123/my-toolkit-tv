@@ -77,6 +77,10 @@ import androidx.compose.material.icons.outlined.SettingsRemote
 import androidx.compose.material.icons.outlined.SmartDisplay
 import androidx.compose.material.icons.outlined.SystemUpdateAlt
 import androidx.compose.material.icons.outlined.VideoLibrary
+import androidx.compose.material.icons.outlined.ArrowDownward
+import androidx.compose.material.icons.outlined.ArrowUpward
+import androidx.compose.material.icons.outlined.Widgets
+import com.tk.toolkit.tv.launcher.data.HeaderShortcut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -119,6 +123,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.tv.material3.Icon
+import androidx.tv.material3.IconButton
+import androidx.tv.material3.IconButtonDefaults
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.ListItemDefaults
 import androidx.tv.material3.MaterialTheme
@@ -176,6 +182,7 @@ private sealed interface CustomizePage {
     data object WallpaperLocalFile : CustomizePage { override val depth = 3 }
     data object WallpaperUrl : CustomizePage { override val depth = 3 }
     data object WatchSources : CustomizePage { override val depth = 2 }
+    data object HeaderShortcuts : CustomizePage { override val depth = 2 }
 
     // Controls & Device behavior
     data object AutoLaunch : CustomizePage { override val depth = 2 }
@@ -324,6 +331,8 @@ fun CustomizeDialog(
     lockAppActions: Boolean,
     lockSystemSettings: Boolean,
     lockSystemGuard: Boolean,
+    headerShortcutsOrder: List<HeaderShortcut> = HeaderShortcut.DEFAULT_ORDER,
+    visibleHeaderShortcuts: Set<String> = HeaderShortcut.DEFAULT_ORDER.map { it.id }.toSet(),
     onToggleWatchRow: (Boolean) -> Unit,
     onSetAppColumns: (Int) -> Unit,
     onToggleBackToAmbient: (Boolean) -> Unit,
@@ -355,6 +364,8 @@ fun CustomizeDialog(
     onSetLockAppActions: (Boolean) -> Unit,
     onSetLockSystemSettings: (Boolean) -> Unit,
     onSetLockSystemGuard: (Boolean) -> Unit,
+    onSetHeaderShortcutsOrder: (List<HeaderShortcut>) -> Unit = {},
+    onToggleHeaderShortcutVisible: (HeaderShortcut, Boolean) -> Unit = { _, _ -> },
     onRefresh: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -384,6 +395,7 @@ fun CustomizeDialog(
             CustomizePage.WallpaperLocalFile -> CustomizePage.ThemeWallpaper
             CustomizePage.WallpaperUrl -> CustomizePage.ThemeWallpaper
             CustomizePage.WatchSources -> CustomizePage.AppearanceGroup
+            CustomizePage.HeaderShortcuts -> CustomizePage.AppearanceGroup
             CustomizePage.AutoLaunch -> CustomizePage.ControlsGroup
             CustomizePage.RemoteButtonsList -> CustomizePage.ControlsGroup
             is CustomizePage.RemoteButtonDetail -> CustomizePage.RemoteButtonsList
@@ -486,11 +498,14 @@ fun CustomizeDialog(
                                     showWatchRow = showWatchRow,
                                     appColumns = appColumns,
                                     themePalette = themePalette,
+                                    headerShortcutsOrder = headerShortcutsOrder,
+                                    visibleHeaderShortcuts = visibleHeaderShortcuts,
                                     enabledCount = apps.count { it.packageName !in disabledWatchPackages },
                                     totalCount = apps.size,
                                     onToggleWatchRow = onToggleWatchRow,
                                     onSetAppColumns = onSetAppColumns,
                                     onOpenThemeWallpaper = { navigateForward(CustomizePage.ThemeWallpaper) },
+                                    onOpenHeaderShortcuts = { navigateForward(CustomizePage.HeaderShortcuts) },
                                     onOpenSources = { navigateForward(CustomizePage.WatchSources) },
                                     onBack = ::navigateBack,
                                 )
@@ -599,6 +614,16 @@ fun CustomizeDialog(
                                     disabledWatchPackages = disabledWatchPackages,
                                     activeWatchPackages = activeWatchPackages,
                                     onToggleWatchPackage = onToggleWatchPackage,
+                                    onBack = ::navigateBack,
+                                )
+                            }
+                            CustomizePage.HeaderShortcuts -> {
+                                HeaderShortcutsPanel(
+                                    focusMemory = focusMemory,
+                                    shortcutsOrder = headerShortcutsOrder,
+                                    visibleShortcuts = visibleHeaderShortcuts,
+                                    onSetShortcutsOrder = onSetHeaderShortcutsOrder,
+                                    onToggleShortcutVisible = onToggleHeaderShortcutVisible,
                                     onBack = ::navigateBack,
                                 )
                             }
@@ -941,11 +966,14 @@ private fun AppearanceGroupPanel(
     showWatchRow: Boolean,
     appColumns: Int,
     themePalette: AppThemePalette,
+    headerShortcutsOrder: List<HeaderShortcut>,
+    visibleHeaderShortcuts: Set<String>,
     enabledCount: Int,
     totalCount: Int,
     onToggleWatchRow: (Boolean) -> Unit,
     onSetAppColumns: (Int) -> Unit,
     onOpenThemeWallpaper: () -> Unit,
+    onOpenHeaderShortcuts: () -> Unit,
     onOpenSources: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -979,6 +1007,20 @@ private fun AppearanceGroupPanel(
                         onOpenThemeWallpaper()
                     },
                     modifier = focusController.modifierFor("theme_wallpaper"),
+                    showChevron = true,
+                )
+            }
+            item(key = "header_shortcuts") {
+                val enabledShortcuts = headerShortcutsOrder.count { it.id in visibleHeaderShortcuts }
+                TvSettingsItem(
+                    icon = Icons.Outlined.Widgets,
+                    title = stringResource(R.string.customize_header_shortcuts),
+                    subtitle = stringResource(R.string.customize_header_shortcuts_subtitle, enabledShortcuts, headerShortcutsOrder.size),
+                    onClick = {
+                        focusController.saveNow("header_shortcuts")
+                        onOpenHeaderShortcuts()
+                    },
+                    modifier = focusController.modifierFor("header_shortcuts"),
                     showChevron = true,
                 )
             }
@@ -3167,6 +3209,148 @@ private fun WatchSourcesPanel(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun HeaderShortcutsPanel(
+    focusMemory: PanelFocusMemory,
+    shortcutsOrder: List<HeaderShortcut>,
+    visibleShortcuts: Set<String>,
+    onSetShortcutsOrder: (List<HeaderShortcut>) -> Unit,
+    onToggleShortcutVisible: (HeaderShortcut, Boolean) -> Unit,
+    onBack: () -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    val focusController = rememberPanelFocus(
+        pageKey = CustomizePage.HeaderShortcuts,
+        memory = focusMemory,
+        fallbackFirstKey = shortcutsOrder.firstOrNull()?.id,
+    )
+    LaunchedEffect(Unit) { focusController.restoreFocus() }
+
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.group_appearance),
+            title = stringResource(R.string.customize_header_shortcuts),
+            subtitle = stringResource(R.string.customize_header_shortcuts_panel_subtitle),
+        )
+        LazyColumn(
+            state = focusController.listState,
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            itemsIndexed(shortcutsOrder, key = { _, item -> item.id }) { index, shortcut ->
+                val isVisible = shortcut.id in visibleShortcuts
+                val canMoveUp = index > 0
+                val canMoveDown = index < shortcutsOrder.size - 1
+
+                HeaderShortcutRow(
+                    shortcut = shortcut,
+                    position = index + 1,
+                    isVisible = isVisible,
+                    canMoveUp = canMoveUp,
+                    canMoveDown = canMoveDown,
+                    onToggleVisible = { onToggleShortcutVisible(shortcut, !isVisible) },
+                    onMoveUp = {
+                        if (canMoveUp) {
+                            val mutable = shortcutsOrder.toMutableList()
+                            val temp = mutable[index]
+                            mutable[index] = mutable[index - 1]
+                            mutable[index - 1] = temp
+                            onSetShortcutsOrder(mutable)
+                        }
+                    },
+                    onMoveDown = {
+                        if (canMoveDown) {
+                            val mutable = shortcutsOrder.toMutableList()
+                            val temp = mutable[index]
+                            mutable[index] = mutable[index + 1]
+                            mutable[index + 1] = temp
+                            onSetShortcutsOrder(mutable)
+                        }
+                    },
+                    modifier = focusController.modifierFor(shortcut.id),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeaderShortcutRow(
+    shortcut: HeaderShortcut,
+    position: Int,
+    isVisible: Boolean,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onToggleVisible: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        TvSettingsItem(
+            icon = shortcut.icon,
+            title = stringResource(shortcut.labelRes),
+            subtitle = stringResource(
+                if (isVisible) R.string.shortcut_status_shown else R.string.shortcut_status_hidden,
+                position,
+            ),
+            onClick = onToggleVisible,
+            modifier = modifier.weight(1f),
+            trailingContent = {
+                TvSwitch(checked = isVisible)
+            },
+        )
+
+        ShortcutReorderButton(
+            icon = Icons.Outlined.ArrowUpward,
+            contentDescription = stringResource(R.string.shortcut_move_up),
+            enabled = canMoveUp,
+            onClick = onMoveUp,
+        )
+
+        ShortcutReorderButton(
+            icon = Icons.Outlined.ArrowDownward,
+            contentDescription = stringResource(R.string.shortcut_move_down),
+            enabled = canMoveDown,
+            onClick = onMoveDown,
+        )
+    }
+}
+
+@Composable
+private fun ShortcutReorderButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier
+            .size(38.dp)
+            .onFocusChanged { isFocused = it.isFocused },
+        colors = IconButtonDefaults.colors(
+            containerColor = ToolkitColors.OnSurface.copy(alpha = if (enabled) 0.08f else 0.03f),
+            contentColor = if (enabled) ToolkitColors.OnSurfaceMuted else ToolkitColors.OnSurfaceMuted.copy(alpha = 0.3f),
+            focusedContainerColor = ToolkitColors.OnSurface,
+            focusedContentColor = ToolkitColors.Background,
+        ),
+    ) {
+        Icon(
+            icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(20.dp),
+        )
     }
 }
 

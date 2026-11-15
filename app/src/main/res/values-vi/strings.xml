@@ -265,6 +265,16 @@
     <!-- Customize groups -->
     <string name="group_appearance">Giao diện &amp; Bố cục</string>
     <string name="group_appearance_subtitle">%1$s · %2$d cột</string>
+    <string name="customize_header_shortcuts">Nút phím tắt</string>
+    <string name="customize_header_shortcuts_subtitle">%1$d/%2$d hiển thị</string>
+    <string name="customize_header_shortcuts_panel_subtitle">Tùy chỉnh hiển thị và sắp xếp thứ tự phím tắt trên thanh tiêu đề</string>
+    <string name="header_shortcut_inputs">Ngõ vào</string>
+    <string name="header_shortcut_network">Mạng</string>
+    <string name="header_shortcut_audio_output">Đầu ra âm thanh</string>
+    <string name="shortcut_status_shown">Vị trí %1$d · Đang hiển thị</string>
+    <string name="shortcut_status_hidden">Vị trí %1$d · Đã ẩn</string>
+    <string name="shortcut_move_up">Di chuyển lên</string>
+    <string name="shortcut_move_down">Di chuyển xuống</string>
     <string name="group_controls">Điều khiển &amp; Hành vi thiết bị</string>
     <string name="group_controls_subtitle">Tự khởi chạy, gán phím điều khiển, bảo vệ màn hình</string>
     <string name="group_language">Ngôn ngữ / Language</string>

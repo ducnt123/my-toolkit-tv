@@ -119,6 +119,26 @@ class LauncherPrefs(context: Context) {
         prefs.edit { putBoolean(KEY_DYNAMIC_AMBIENT, enabled) }
     }
 
+    fun clockColorPreset(): String =
+        prefs.getString(KEY_CLOCK_COLOR_PRESET, ClockColorPreset.DEFAULT.id) ?: ClockColorPreset.DEFAULT.id
+
+    fun setClockColorPreset(presetId: String) {
+        prefs.edit { putString(KEY_CLOCK_COLOR_PRESET, presetId) }
+    }
+
+    fun dateColorPreset(): String =
+        prefs.getString(KEY_DATE_COLOR_PRESET, ClockColorPreset.DEFAULT.id) ?: ClockColorPreset.DEFAULT.id
+
+    fun setDateColorPreset(presetId: String) {
+        prefs.edit { putString(KEY_DATE_COLOR_PRESET, presetId) }
+    }
+
+    fun isClockGradientEnabled(): Boolean = prefs.getBoolean(KEY_CLOCK_GRADIENT_ENABLED, true)
+
+    fun setClockGradientEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_CLOCK_GRADIENT_ENABLED, enabled) }
+    }
+
     fun wallpaperDim(): Int = prefs.getInt(KEY_WALLPAPER_DIM, DEFAULT_WALLPAPER_DIM).coerceIn(0, 100)
 
     fun setWallpaperDim(dim: Int) {
@@ -387,6 +407,9 @@ class LauncherPrefs(context: Context) {
         root.put(KEY_LANGUAGE, language())
         root.put(KEY_THEME_PALETTE, themePalette().id)
         root.put(KEY_DYNAMIC_AMBIENT, isDynamicAmbientEnabled())
+        root.put(KEY_CLOCK_COLOR_PRESET, clockColorPreset())
+        root.put(KEY_DATE_COLOR_PRESET, dateColorPreset())
+        root.put(KEY_CLOCK_GRADIENT_ENABLED, isClockGradientEnabled())
         root.put(KEY_WALLPAPER_DIM, wallpaperDim())
         root.put(KEY_AUTO_LAUNCH_TARGET, autoLaunchTarget())
         root.put(KEY_AUTO_LAUNCH_BOOT, isAutoLaunchOnBootEnabled())
@@ -448,6 +471,9 @@ class LauncherPrefs(context: Context) {
             if (root.has(KEY_LANGUAGE)) putString(KEY_LANGUAGE, AppLanguage.fromCode(root.optString(KEY_LANGUAGE)).code)
             if (root.has(KEY_THEME_PALETTE)) putString(KEY_THEME_PALETTE, AppThemePalette.fromId(root.optString(KEY_THEME_PALETTE)).id)
             if (root.has(KEY_DYNAMIC_AMBIENT)) putBoolean(KEY_DYNAMIC_AMBIENT, root.optBoolean(KEY_DYNAMIC_AMBIENT, false))
+            if (root.has(KEY_CLOCK_COLOR_PRESET)) putString(KEY_CLOCK_COLOR_PRESET, root.optString(KEY_CLOCK_COLOR_PRESET))
+            if (root.has(KEY_DATE_COLOR_PRESET)) putString(KEY_DATE_COLOR_PRESET, root.optString(KEY_DATE_COLOR_PRESET))
+            if (root.has(KEY_CLOCK_GRADIENT_ENABLED)) putBoolean(KEY_CLOCK_GRADIENT_ENABLED, root.optBoolean(KEY_CLOCK_GRADIENT_ENABLED, true))
             if (root.has(KEY_WALLPAPER_DIM)) putInt(KEY_WALLPAPER_DIM, root.optInt(KEY_WALLPAPER_DIM, DEFAULT_WALLPAPER_DIM).coerceIn(0, 100))
             if (root.has(KEY_AUTO_LAUNCH_TARGET)) putString(KEY_AUTO_LAUNCH_TARGET, root.optString(KEY_AUTO_LAUNCH_TARGET, ""))
             if (root.has(KEY_AUTO_LAUNCH_BOOT)) putBoolean(KEY_AUTO_LAUNCH_BOOT, root.optBoolean(KEY_AUTO_LAUNCH_BOOT, true))
@@ -511,6 +537,9 @@ class LauncherPrefs(context: Context) {
         private const val KEY_LANGUAGE = "language"
         private const val KEY_THEME_PALETTE = "theme_palette"
         private const val KEY_DYNAMIC_AMBIENT = "dynamic_ambient"
+        private const val KEY_CLOCK_COLOR_PRESET = "clock_color_preset"
+        private const val KEY_DATE_COLOR_PRESET = "date_color_preset"
+        private const val KEY_CLOCK_GRADIENT_ENABLED = "clock_gradient_enabled"
         private const val KEY_WALLPAPER_DIM = "wallpaper_dim"
         private const val KEY_AUTO_LAUNCH_TARGET = "auto_launch_target"
         private const val KEY_AUTO_LAUNCH_BOOT = "auto_launch_boot"

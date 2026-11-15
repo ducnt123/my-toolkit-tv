@@ -68,6 +68,12 @@ data class LauncherState(
     val language: AppLanguage = AppLanguage.DEFAULT,
     /** Selected dark theme color palette. */
     val themePalette: AppThemePalette = AppThemePalette.DEFAULT,
+    /** Selected clock color preset ID. */
+    val clockColorPreset: String = "default",
+    /** Selected date color preset ID. */
+    val dateColorPreset: String = "default",
+    /** Whether vertical gradient effect is enabled on the clock digits. */
+    val clockGradientEnabled: Boolean = true,
     /** Whether the background ambient glow shifts toward the focused app's color. */
     val dynamicAmbientColor: Boolean = false,
     /** Optional custom wallpaper bitmap loaded from internal storage. */
@@ -124,6 +130,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             backToAmbient = prefs.isBackToAmbientEnabled(),
             language = AppLanguage.fromCode(prefs.language()),
             themePalette = prefs.themePalette(),
+            clockColorPreset = prefs.clockColorPreset(),
+            dateColorPreset = prefs.dateColorPreset(),
+            clockGradientEnabled = prefs.isClockGradientEnabled(),
             dynamicAmbientColor = prefs.isDynamicAmbientEnabled(),
             wallpaperDim = prefs.wallpaperDim(),
             autoLaunchTarget = prefs.autoLaunchTarget(),
@@ -178,6 +187,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val backToAmbient = prefs.isBackToAmbientEnabled()
             val language = AppLanguage.fromCode(prefs.language())
             val palette = prefs.themePalette()
+            val clockColorPreset = prefs.clockColorPreset()
+            val dateColorPreset = prefs.dateColorPreset()
+            val clockGradientEnabled = prefs.isClockGradientEnabled()
             val dynamicAmbient = prefs.isDynamicAmbientEnabled()
             val wallpaperDim = prefs.wallpaperDim()
             val autoTarget = prefs.autoLaunchTarget()
@@ -192,12 +204,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val lockAppActions = prefs.isLockAppActionsEnabled()
             val lockSystemSettings = prefs.isLockSystemSettingsEnabled()
             val lockSystemGuard = prefs.isLockSystemGuardEnabled()
+            val splitted = split(all)
             ToolkitColors.currentPalette = palette
 
             _state.update { current ->
                 // Don't reshuffle under the user while they're moving something.
                 if (current.movingKey != null) current
-                else split(all).copy(
+                else current.copy(
+                    apps = splitted.apps,
+                    hiddenApps = splitted.hiddenApps,
                     loaded = true,
                     watchItems = watch,
                     showWatchRow = showWatch,
@@ -212,6 +227,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     backToAmbient = backToAmbient,
                     language = language,
                     themePalette = palette,
+                    clockColorPreset = clockColorPreset,
+                    dateColorPreset = dateColorPreset,
+                    clockGradientEnabled = clockGradientEnabled,
                     dynamicAmbientColor = dynamicAmbient,
                     customWallpaper = wallpaper,
                     wallpaperDim = wallpaperDim,
@@ -227,7 +245,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     lockAppActions = lockAppActions,
                     lockSystemSettings = lockSystemSettings,
                     lockSystemGuard = lockSystemGuard,
-                    homeRequestCount = current.homeRequestCount,
                 )
             }
         }
@@ -333,6 +350,21 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun setDynamicAmbientEnabled(enabled: Boolean) {
         prefs.setDynamicAmbientEnabled(enabled)
         _state.update { it.copy(dynamicAmbientColor = enabled) }
+    }
+
+    fun setClockColorPreset(presetId: String) {
+        prefs.setClockColorPreset(presetId)
+        _state.update { it.copy(clockColorPreset = presetId) }
+    }
+
+    fun setDateColorPreset(presetId: String) {
+        prefs.setDateColorPreset(presetId)
+        _state.update { it.copy(dateColorPreset = presetId) }
+    }
+
+    fun setClockGradientEnabled(enabled: Boolean) {
+        prefs.setClockGradientEnabled(enabled)
+        _state.update { it.copy(clockGradientEnabled = enabled) }
     }
 
     fun setWallpaperDim(dim: Int) {
@@ -561,36 +593,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         prefs.setHidden(packageName, hidden)
         // Unhidden apps return to their saved position.
         _state.update { current ->
-            split(prefs.sort(current.apps + current.hiddenApps)).copy(
-                loaded = current.loaded,
-                movingKey = current.movingKey,
-                watchItems = current.watchItems,
-                showWatchRow = current.showWatchRow,
-                appColumns = current.appColumns,
-                disabledWatchPackages = current.disabledWatchPackages,
-                activeWatchPackages = current.activeWatchPackages,
-                remoteButtons = current.remoteButtons,
-                customKeyMappings = current.customKeyMappings,
-                overrideHomeKey = current.overrideHomeKey,
-                backToAmbient = current.backToAmbient,
-                language = current.language,
-                themePalette = current.themePalette,
-                dynamicAmbientColor = current.dynamicAmbientColor,
-                customWallpaper = current.customWallpaper,
-                wallpaperDim = current.wallpaperDim,
-                autoLaunchTarget = current.autoLaunchTarget,
-                autoLaunchOnBoot = current.autoLaunchOnBoot,
-                autoLaunchOnWake = current.autoLaunchOnWake,
-                updateCheckInterval = current.updateCheckInterval,
-                availableUpdateVersion = current.availableUpdateVersion,
-                appLockEnabled = current.appLockEnabled,
-                hasAppLockPin = current.hasAppLockPin,
-                lockedPackages = current.lockedPackages,
-                lockCustomize = current.lockCustomize,
-                lockAppActions = current.lockAppActions,
-                lockSystemSettings = current.lockSystemSettings,
-                lockSystemGuard = current.lockSystemGuard,
-                homeRequestCount = current.homeRequestCount,
+            val splitted = split(prefs.sort(current.apps + current.hiddenApps))
+            current.copy(
+                apps = splitted.apps,
+                hiddenApps = splitted.hiddenApps,
             )
         }
     }

@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
@@ -51,6 +52,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.tk.toolkit.tv.R
 import com.tk.toolkit.tv.launcher.data.AppLanguage
+import com.tk.toolkit.tv.launcher.data.ClockColorPreset
 import com.tk.toolkit.tv.launcher.data.HeaderShortcut
 import com.tk.toolkit.tv.ui.theme.ToolkitColors
 import kotlinx.coroutines.delay
@@ -67,16 +69,12 @@ private enum class NetworkType(@param:StringRes val labelRes: Int, val icon: Ima
 }
 
 @Composable
-fun ClockHeader(
+fun ClockDateDisplay(
     language: AppLanguage,
-    onOpenNetwork: () -> Unit,
-    onOpenAudioOutput: () -> Unit,
-    onOpenSettings: () -> Unit,
+    clockColorPreset: String = "default",
+    dateColorPreset: String = "default",
+    clockGradientEnabled: Boolean = true,
     modifier: Modifier = Modifier,
-    showInputsButton: Boolean = false,
-    onOpenInputs: () -> Unit = {},
-    shortcutOrder: List<HeaderShortcut> = HeaderShortcut.DEFAULT_ORDER,
-    visibleShortcuts: Set<String> = HeaderShortcut.DEFAULT_ORDER.map { it.id }.toSet(),
 ) {
     val context = LocalContext.current
     val locale = language.locale
@@ -91,22 +89,57 @@ fun ClockHeader(
     val clock = remember(tick, locale, is24Hour) {
         clockText(is24Hour, locale)
     }
-    val networkType = rememberNetworkType(context)
 
-    // One compact line, so the rows below get the height.
-    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    val clockPreset = remember(clockColorPreset) { ClockColorPreset.fromId(clockColorPreset) }
+    val datePreset = remember(dateColorPreset) { ClockColorPreset.fromId(dateColorPreset) }
+
+    val clockBrush: Brush = remember(clockPreset, clockGradientEnabled, ToolkitColors.currentPalette) {
+        if (clockPreset == ClockColorPreset.DEFAULT) {
+            if (clockGradientEnabled) {
+                Brush.verticalGradient(listOf(ToolkitColors.OnSurface, ToolkitColors.Accent))
+            } else {
+                SolidColor(ToolkitColors.OnSurface)
+            }
+        } else {
+            if (clockGradientEnabled && clockPreset.previewGradient.isNotEmpty()) {
+                Brush.verticalGradient(clockPreset.previewGradient)
+            } else {
+                SolidColor(clockPreset.primaryColor)
+            }
+        }
+    }
+
+    val meridiemColor = if (clockPreset == ClockColorPreset.DEFAULT) {
+        ToolkitColors.OnSurfaceMuted
+    } else {
+        clockPreset.primaryColor.copy(alpha = 0.7f)
+    }
+
+    val weekdayColor = if (datePreset == ClockColorPreset.DEFAULT) {
+        ToolkitColors.Accent
+    } else {
+        datePreset.primaryColor
+    }
+
+    val dateTextColor = if (datePreset == ClockColorPreset.DEFAULT) {
+        ToolkitColors.OnSurfaceMuted
+    } else {
+        datePreset.primaryColor.copy(alpha = 0.75f)
+    }
+
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 clock.time,
                 style = MaterialTheme.typography.displaySmall.copy(
-                    brush = Brush.verticalGradient(listOf(ToolkitColors.OnSurface, ToolkitColors.Accent)),
+                    brush = clockBrush,
                 ),
             )
             clock.meridiem?.let {
                 Text(
                     it,
                     style = MaterialTheme.typography.titleMedium,
-                    color = ToolkitColors.OnSurfaceMuted,
+                    color = meridiemColor,
                     modifier = Modifier.padding(start = 6.dp, bottom = 6.dp),
                 )
             }
@@ -118,9 +151,38 @@ fun ClockHeader(
                 .background(ToolkitColors.OnSurface.copy(alpha = 0.15f)),
         )
         Column {
-            Text(clock.weekday.uppercase(locale), style = MaterialTheme.typography.labelLarge, color = ToolkitColors.Accent)
-            Text(clock.date, style = MaterialTheme.typography.bodyLarge, color = ToolkitColors.OnSurfaceMuted)
+            Text(clock.weekday.uppercase(locale), style = MaterialTheme.typography.labelLarge, color = weekdayColor)
+            Text(clock.date, style = MaterialTheme.typography.bodyLarge, color = dateTextColor)
         }
+    }
+}
+
+@Composable
+fun ClockHeader(
+    language: AppLanguage,
+    onOpenNetwork: () -> Unit,
+    onOpenAudioOutput: () -> Unit,
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+    showInputsButton: Boolean = false,
+    onOpenInputs: () -> Unit = {},
+    shortcutOrder: List<HeaderShortcut> = HeaderShortcut.DEFAULT_ORDER,
+    visibleShortcuts: Set<String> = HeaderShortcut.DEFAULT_ORDER.map { it.id }.toSet(),
+    clockColorPreset: String = "default",
+    dateColorPreset: String = "default",
+    clockGradientEnabled: Boolean = true,
+) {
+    val context = LocalContext.current
+    val networkType = rememberNetworkType(context)
+
+    // One compact line, so the rows below get the height.
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        ClockDateDisplay(
+            language = language,
+            clockColorPreset = clockColorPreset,
+            dateColorPreset = dateColorPreset,
+            clockGradientEnabled = clockGradientEnabled,
+        )
         Spacer(Modifier.weight(1f))
         for (shortcut in shortcutOrder) {
             if (shortcut.id !in visibleShortcuts) continue

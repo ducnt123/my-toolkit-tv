@@ -18,6 +18,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -72,6 +73,7 @@ import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material.icons.outlined.Sensors
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SettingsRemote
 import androidx.compose.material.icons.outlined.SmartDisplay
@@ -80,6 +82,7 @@ import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.Widgets
+import com.tk.toolkit.tv.launcher.data.ClockColorPreset
 import com.tk.toolkit.tv.launcher.data.HeaderShortcut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -183,6 +186,7 @@ private sealed interface CustomizePage {
     data object WallpaperUrl : CustomizePage { override val depth = 3 }
     data object WatchSources : CustomizePage { override val depth = 2 }
     data object HeaderShortcuts : CustomizePage { override val depth = 2 }
+    data object ClockDateColor : CustomizePage { override val depth = 2 }
 
     // Controls & Device behavior
     data object AutoLaunch : CustomizePage { override val depth = 2 }
@@ -333,6 +337,9 @@ fun CustomizeDialog(
     lockSystemGuard: Boolean,
     headerShortcutsOrder: List<HeaderShortcut> = HeaderShortcut.DEFAULT_ORDER,
     visibleHeaderShortcuts: Set<String> = HeaderShortcut.DEFAULT_ORDER.map { it.id }.toSet(),
+    clockColorPreset: String = "default",
+    dateColorPreset: String = "default",
+    clockGradientEnabled: Boolean = true,
     onToggleWatchRow: (Boolean) -> Unit,
     onSetAppColumns: (Int) -> Unit,
     onToggleBackToAmbient: (Boolean) -> Unit,
@@ -366,6 +373,9 @@ fun CustomizeDialog(
     onSetLockSystemGuard: (Boolean) -> Unit,
     onSetHeaderShortcutsOrder: (List<HeaderShortcut>) -> Unit = {},
     onToggleHeaderShortcutVisible: (HeaderShortcut, Boolean) -> Unit = { _, _ -> },
+    onSetClockColorPreset: (String) -> Unit = {},
+    onSetDateColorPreset: (String) -> Unit = {},
+    onSetClockGradientEnabled: (Boolean) -> Unit = {},
     onRefresh: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -396,6 +406,7 @@ fun CustomizeDialog(
             CustomizePage.WallpaperUrl -> CustomizePage.ThemeWallpaper
             CustomizePage.WatchSources -> CustomizePage.AppearanceGroup
             CustomizePage.HeaderShortcuts -> CustomizePage.AppearanceGroup
+            CustomizePage.ClockDateColor -> CustomizePage.AppearanceGroup
             CustomizePage.AutoLaunch -> CustomizePage.ControlsGroup
             CustomizePage.RemoteButtonsList -> CustomizePage.ControlsGroup
             is CustomizePage.RemoteButtonDetail -> CustomizePage.RemoteButtonsList
@@ -500,12 +511,14 @@ fun CustomizeDialog(
                                     themePalette = themePalette,
                                     headerShortcutsOrder = headerShortcutsOrder,
                                     visibleHeaderShortcuts = visibleHeaderShortcuts,
+                                    clockColorPreset = clockColorPreset,
                                     enabledCount = apps.count { it.packageName !in disabledWatchPackages },
                                     totalCount = apps.size,
                                     onToggleWatchRow = onToggleWatchRow,
                                     onSetAppColumns = onSetAppColumns,
                                     onOpenThemeWallpaper = { navigateForward(CustomizePage.ThemeWallpaper) },
                                     onOpenHeaderShortcuts = { navigateForward(CustomizePage.HeaderShortcuts) },
+                                    onOpenClockDateColor = { navigateForward(CustomizePage.ClockDateColor) },
                                     onOpenSources = { navigateForward(CustomizePage.WatchSources) },
                                     onBack = ::navigateBack,
                                 )
@@ -624,6 +637,19 @@ fun CustomizeDialog(
                                     visibleShortcuts = visibleHeaderShortcuts,
                                     onSetShortcutsOrder = onSetHeaderShortcutsOrder,
                                     onToggleShortcutVisible = onToggleHeaderShortcutVisible,
+                                    onBack = ::navigateBack,
+                                )
+                            }
+                            CustomizePage.ClockDateColor -> {
+                                ClockDateColorPanel(
+                                    focusMemory = focusMemory,
+                                    language = language,
+                                    clockColorPreset = clockColorPreset,
+                                    dateColorPreset = dateColorPreset,
+                                    clockGradientEnabled = clockGradientEnabled,
+                                    onSetClockColorPreset = onSetClockColorPreset,
+                                    onSetDateColorPreset = onSetDateColorPreset,
+                                    onSetClockGradientEnabled = onSetClockGradientEnabled,
                                     onBack = ::navigateBack,
                                 )
                             }
@@ -968,12 +994,14 @@ private fun AppearanceGroupPanel(
     themePalette: AppThemePalette,
     headerShortcutsOrder: List<HeaderShortcut>,
     visibleHeaderShortcuts: Set<String>,
+    clockColorPreset: String,
     enabledCount: Int,
     totalCount: Int,
     onToggleWatchRow: (Boolean) -> Unit,
     onSetAppColumns: (Int) -> Unit,
     onOpenThemeWallpaper: () -> Unit,
     onOpenHeaderShortcuts: () -> Unit,
+    onOpenClockDateColor: () -> Unit,
     onOpenSources: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -1021,6 +1049,20 @@ private fun AppearanceGroupPanel(
                         onOpenHeaderShortcuts()
                     },
                     modifier = focusController.modifierFor("header_shortcuts"),
+                    showChevron = true,
+                )
+            }
+            item(key = "clock_date_color") {
+                val clockPreset = ClockColorPreset.fromId(clockColorPreset)
+                TvSettingsItem(
+                    icon = Icons.Outlined.Schedule,
+                    title = stringResource(R.string.customize_clock_date_color),
+                    subtitle = stringResource(clockPreset.labelRes),
+                    onClick = {
+                        focusController.saveNow("clock_date_color")
+                        onOpenClockDateColor()
+                    },
+                    modifier = focusController.modifierFor("clock_date_color"),
                     showChevron = true,
                 )
             }
@@ -3326,6 +3368,180 @@ private fun HeaderShortcutRow(
 }
 
 @Composable
+private fun SectionSubheader(title: String, modifier: Modifier = Modifier) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelLarge,
+        color = ToolkitColors.Accent,
+        modifier = modifier.padding(start = 12.dp, top = 14.dp, bottom = 4.dp),
+    )
+}
+
+@Composable
+private fun ColorPresetChoiceItem(
+    preset: ClockColorPreset,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    TvSettingsItem(
+        title = stringResource(preset.labelRes),
+        subtitle = if (selected) stringResource(R.string.common_selected) else "",
+        onClick = onClick,
+        modifier = modifier,
+        leadingContent = {
+            if (preset == ClockColorPreset.DEFAULT) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(34.dp)
+                        .background(ToolkitColors.OnSurface.copy(alpha = 0.08f), IconBoxShape)
+                        .border(1.5.dp, ToolkitColors.Accent, IconBoxShape),
+                ) {
+                    Box(
+                        Modifier
+                            .size(14.dp)
+                            .background(
+                                Brush.linearGradient(listOf(ToolkitColors.OnSurface, ToolkitColors.Accent)),
+                                CircleShape,
+                            )
+                    )
+                }
+            } else {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(34.dp)
+                        .background(ToolkitColors.OnSurface.copy(alpha = 0.08f), IconBoxShape)
+                        .border(1.5.dp, preset.primaryColor.copy(alpha = 0.5f), IconBoxShape),
+                ) {
+                    val brush = if (preset.previewGradient.isNotEmpty()) {
+                        Brush.linearGradient(preset.previewGradient)
+                    } else {
+                        SolidColor(preset.primaryColor)
+                    }
+                    Box(
+                        Modifier
+                            .size(16.dp)
+                            .background(brush, CircleShape)
+                    )
+                }
+            }
+        },
+        trailingContent = if (selected) {
+            {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .background(ToolkitColors.Accent, CircleShape),
+                ) {
+                    Icon(
+                        Icons.Outlined.Check,
+                        contentDescription = stringResource(R.string.common_selected),
+                        tint = ToolkitColors.Background,
+                        modifier = Modifier.size(15.dp),
+                    )
+                }
+            }
+        } else null,
+    )
+}
+
+@Composable
+private fun ClockDateColorPanel(
+    focusMemory: PanelFocusMemory,
+    language: AppLanguage,
+    clockColorPreset: String,
+    dateColorPreset: String,
+    clockGradientEnabled: Boolean,
+    onSetClockColorPreset: (String) -> Unit,
+    onSetDateColorPreset: (String) -> Unit,
+    onSetClockGradientEnabled: (Boolean) -> Unit,
+    onBack: () -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    val presets = ClockColorPreset.entries
+    val focusController = rememberPanelFocus(
+        pageKey = CustomizePage.ClockDateColor,
+        memory = focusMemory,
+        fallbackFirstKey = "toggle_gradient",
+    )
+    LaunchedEffect(Unit) { focusController.restoreFocus() }
+
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.group_appearance),
+            title = stringResource(R.string.customize_clock_date_color),
+            subtitle = stringResource(R.string.customize_clock_date_color_panel_subtitle),
+        )
+
+        // Live preview of the clock and date with current settings
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .clip(ItemShape)
+                .background(ToolkitColors.OnSurface.copy(alpha = 0.06f))
+                .border(1.dp, ToolkitColors.OnSurface.copy(alpha = 0.12f), ItemShape)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            ClockDateDisplay(
+                language = language,
+                clockColorPreset = clockColorPreset,
+                dateColorPreset = dateColorPreset,
+                clockGradientEnabled = clockGradientEnabled,
+            )
+        }
+
+        LazyColumn(
+            state = focusController.listState,
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            item(key = "toggle_gradient") {
+                TvSettingsItem(
+                    icon = Icons.Outlined.AutoAwesome,
+                    title = stringResource(R.string.clock_gradient_title),
+                    subtitle = stringResource(R.string.clock_gradient_subtitle),
+                    onClick = { onSetClockGradientEnabled(!clockGradientEnabled) },
+                    modifier = focusController.modifierFor("toggle_gradient"),
+                    trailingContent = { TvSwitch(checked = clockGradientEnabled) },
+                )
+            }
+
+            item(key = "header_clock_color") {
+                SectionSubheader(stringResource(R.string.clock_color_title))
+            }
+            itemsIndexed(presets, key = { _, p -> "clock_${p.id}" }) { _, preset ->
+                val selected = preset.id.equals(clockColorPreset, ignoreCase = true)
+                ColorPresetChoiceItem(
+                    preset = preset,
+                    selected = selected,
+                    onClick = { onSetClockColorPreset(preset.id) },
+                    modifier = focusController.modifierFor("clock_${preset.id}"),
+                )
+            }
+
+            item(key = "header_date_color") {
+                SectionSubheader(stringResource(R.string.date_color_title))
+            }
+            itemsIndexed(presets, key = { _, p -> "date_${p.id}" }) { _, preset ->
+                val selected = preset.id.equals(dateColorPreset, ignoreCase = true)
+                ColorPresetChoiceItem(
+                    preset = preset,
+                    selected = selected,
+                    onClick = { onSetDateColorPreset(preset.id) },
+                    modifier = focusController.modifierFor("date_${preset.id}"),
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun ShortcutReorderButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     contentDescription: String,
@@ -3418,6 +3634,7 @@ private fun TvSettingsItem(
     icon: ImageVector? = null,
     appIcon: androidx.compose.ui.graphics.ImageBitmap? = null,
     appIconPadded: Boolean = false,
+    leadingContent: (@Composable BoxScope.() -> Unit)? = null,
     showChevron: Boolean = false,
     danger: Boolean = false,
     trailingContent: (@Composable () -> Unit)? = null,
@@ -3427,53 +3644,57 @@ private fun TvSettingsItem(
         selected = false,
         onClick = onClick,
         modifier = modifier,
-        leadingContent = if (appIcon != null || icon != null) {
-            {
-                if (appIcon != null) {
-                    if (appIconPadded) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(34.dp)
-                                .background(tint.copy(alpha = 0.08f), IconBoxShape)
-                                .clip(IconBoxShape),
-                        ) {
+        leadingContent = when {
+            leadingContent != null -> leadingContent
+            appIcon != null || icon != null -> {
+                {
+                    if (appIcon != null) {
+                        if (appIconPadded) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .background(tint.copy(alpha = 0.08f), IconBoxShape)
+                                    .clip(IconBoxShape),
+                            ) {
+                                Image(
+                                    appIcon,
+                                    contentDescription = title,
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(6.dp),
+                                )
+                            }
+                        } else {
                             Image(
                                 appIcon,
                                 contentDescription = title,
                                 contentScale = ContentScale.Fit,
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(6.dp),
+                                    .size(34.dp)
+                                    .clip(IconBoxShape),
                             )
                         }
-                    } else {
-                        Image(
-                            appIcon,
-                            contentDescription = title,
-                            contentScale = ContentScale.Fit,
+                    } else if (icon != null) {
+                        Box(
+                            contentAlignment = Alignment.Center,
                             modifier = Modifier
                                 .size(34.dp)
-                                .clip(IconBoxShape),
-                        )
-                    }
-                } else if (icon != null) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(34.dp)
-                            .background(tint.copy(alpha = 0.08f), IconBoxShape),
-                    ) {
-                        Icon(
-                            icon,
-                            contentDescription = null,
-                            tint = if (danger) ToolkitColors.Danger else ToolkitColors.Accent,
-                            modifier = Modifier.size(19.dp),
-                        )
+                                .background(tint.copy(alpha = 0.08f), IconBoxShape),
+                        ) {
+                            Icon(
+                                icon,
+                                contentDescription = null,
+                                tint = if (danger) ToolkitColors.Danger else ToolkitColors.Accent,
+                                modifier = Modifier.size(19.dp),
+                            )
+                        }
                     }
                 }
             }
-        } else null,
+            else -> null
+        },
         headlineContent = {
             Text(
                 title,

@@ -141,12 +141,14 @@ import com.tk.toolkit.tv.launcher.data.AppLockManager
 import com.tk.toolkit.tv.launcher.data.AppThemePalette
 import com.tk.toolkit.tv.launcher.data.AppUpdateManager
 import com.tk.toolkit.tv.launcher.data.AutoLaunchManager
+import com.tk.toolkit.tv.launcher.data.BackupFolderBrowserState
 import com.tk.toolkit.tv.launcher.data.BackupManager
 import com.tk.toolkit.tv.launcher.data.CustomKeyMapping
 import com.tk.toolkit.tv.launcher.data.FolderBrowserState
 import com.tk.toolkit.tv.launcher.data.InstallOutcome
 import com.tk.toolkit.tv.launcher.data.LauncherApp
 import com.tk.toolkit.tv.launcher.data.LauncherPrefs
+import com.tk.toolkit.tv.launcher.data.LocalBackupEntry
 import com.tk.toolkit.tv.launcher.data.LocalImageEntry
 import com.tk.toolkit.tv.launcher.data.LocaleHelper
 import com.tk.toolkit.tv.launcher.data.ReleaseInfo
@@ -199,6 +201,8 @@ private sealed interface CustomizePage {
     // System & Updates
     data object AppUpdate : CustomizePage { override val depth = 2 }
     data object BackupRestore : CustomizePage { override val depth = 2 }
+    data object BackupExportFile : CustomizePage { override val depth = 3 }
+    data object BackupImportFile : CustomizePage { override val depth = 3 }
     data object AdvancedSettings : CustomizePage { override val depth = 2 }
 
     // App Lock & Security
@@ -415,6 +419,8 @@ fun CustomizeDialog(
             is CustomizePage.CustomKeyDetail -> CustomizePage.RemoteButtonsList
             CustomizePage.AppUpdate -> CustomizePage.SystemGroup
             CustomizePage.BackupRestore -> CustomizePage.SystemGroup
+            CustomizePage.BackupExportFile -> CustomizePage.BackupRestore
+            CustomizePage.BackupImportFile -> CustomizePage.BackupRestore
             CustomizePage.AdvancedSettings -> CustomizePage.SystemGroup
             CustomizePage.AppLockApps -> CustomizePage.AppLock
         }
@@ -668,7 +674,27 @@ fun CustomizeDialog(
                             }
                             CustomizePage.BackupRestore -> {
                                 BackupRestorePanel(
+                                    focusMemory = focusMemory,
+                                    onOpenExportFile = { navigateForward(CustomizePage.BackupExportFile) },
+                                    onOpenImportFile = { navigateForward(CustomizePage.BackupImportFile) },
                                     onRestoreCompleted = onRestoreCompleted,
+                                    onBack = ::navigateBack,
+                                )
+                            }
+                            CustomizePage.BackupExportFile -> {
+                                BackupExportFilePanel(
+                                    focusMemory = focusMemory,
+                                    onExportSaved = { page = CustomizePage.BackupRestore },
+                                    onBack = ::navigateBack,
+                                )
+                            }
+                            CustomizePage.BackupImportFile -> {
+                                BackupImportFilePanel(
+                                    focusMemory = focusMemory,
+                                    onRestoreCompleted = {
+                                        onRestoreCompleted()
+                                        page = CustomizePage.BackupRestore
+                                    },
                                     onBack = ::navigateBack,
                                 )
                             }
@@ -2606,42 +2632,21 @@ private fun AutoLaunchPanel(
 
 @Composable
 private fun BackupRestorePanel(
+    focusMemory: PanelFocusMemory,
+    onOpenExportFile: () -> Unit,
+    onOpenImportFile: () -> Unit,
     onRestoreCompleted: () -> Unit,
     onBack: () -> Unit,
 ) {
     BackHandler(onBack = onBack)
     val context = LocalContext.current
-    val firstItem = remember { FocusRequester() }
+    val focusController = rememberPanelFocus(
+        pageKey = CustomizePage.BackupRestore,
+        memory = focusMemory,
+        fallbackFirstKey = "export_quick",
+    )
 
-    val createBackupLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/json"),
-    ) { uri ->
-        if (uri != null) {
-            val ok = BackupManager.exportToUri(context, uri)
-            Toast.makeText(
-                context,
-                if (ok) context.getString(R.string.toast_backup_saved, BackupManager.DEFAULT_FILE_NAME)
-                else context.getString(R.string.toast_backup_failed),
-                Toast.LENGTH_SHORT,
-            ).show()
-        }
-    }
-
-    val openBackupLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        if (uri != null) {
-            val ok = BackupManager.importFromUri(context, uri)
-            Toast.makeText(
-                context,
-                context.getString(if (ok) R.string.toast_restore_success else R.string.toast_restore_failed),
-                Toast.LENGTH_SHORT,
-            ).show()
-            if (ok) onRestoreCompleted()
-        }
-    }
-
-    LaunchedEffect(Unit) { firstItem.requestFocusWhenReady() }
+    LaunchedEffect(Unit) { focusController.restoreFocus() }
 
     Column(Modifier.fillMaxSize()) {
         SheetHeader(
@@ -2650,6 +2655,7 @@ private fun BackupRestorePanel(
             subtitle = stringResource(R.string.customize_backup_restore_subtitle),
         )
         LazyColumn(
+            state = focusController.listState,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.weight(1f),
@@ -2668,7 +2674,7 @@ private fun BackupRestorePanel(
                             Toast.LENGTH_SHORT,
                         ).show()
                     },
-                    modifier = Modifier.focusRequester(firstItem),
+                    modifier = focusController.modifierFor("export_quick"),
                 )
             }
             item(key = "import_quick") {
@@ -2685,6 +2691,7 @@ private fun BackupRestorePanel(
                         ).show()
                         if (ok) onRestoreCompleted()
                     },
+                    modifier = focusController.modifierFor("import_quick"),
                 )
             }
             item(key = "export_file") {
@@ -2693,10 +2700,10 @@ private fun BackupRestorePanel(
                     title = stringResource(R.string.backup_export_file),
                     subtitle = stringResource(R.string.backup_export_file_subtitle),
                     onClick = {
-                        runCatching { createBackupLauncher.launch(BackupManager.DEFAULT_FILE_NAME) }.onFailure {
-                            Toast.makeText(context, context.getString(R.string.toast_could_not_open), Toast.LENGTH_SHORT).show()
-                        }
+                        focusController.saveNow("export_file")
+                        onOpenExportFile()
                     },
+                    modifier = focusController.modifierFor("export_file"),
                     showChevron = true,
                 )
             }
@@ -2706,12 +2713,567 @@ private fun BackupRestorePanel(
                     title = stringResource(R.string.backup_import_file),
                     subtitle = stringResource(R.string.backup_import_file_subtitle),
                     onClick = {
-                        runCatching { openBackupLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }.onFailure {
-                            Toast.makeText(context, context.getString(R.string.toast_could_not_open), Toast.LENGTH_SHORT).show()
-                        }
+                        focusController.saveNow("import_file")
+                        onOpenImportFile()
                     },
+                    modifier = focusController.modifierFor("import_file"),
                     showChevron = true,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BackupExportFilePanel(
+    focusMemory: PanelFocusMemory,
+    onExportSaved: () -> Unit,
+    onBack: () -> Unit,
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var hasAllFiles by remember { mutableStateOf(WallpaperStore.hasAllFilesAccess()) }
+    var fileName by remember { mutableStateOf(BackupManager.DEFAULT_FILE_NAME) }
+    var quickFolders by remember { mutableStateOf<List<Pair<String, File>>>(emptyList()) }
+    var currentFolder by remember { mutableStateOf<File?>(null) }
+    var folderState by remember { mutableStateOf<BackupFolderBrowserState?>(null) }
+    var scanTrigger by remember { mutableIntStateOf(0) }
+
+    val activeFolder = currentFolder
+    val browseKey = activeFolder?.let { "backup_export_dir:${it.absolutePath}" } ?: "backup_export_roots"
+    val fallbackKey = remember(activeFolder, hasAllFiles, quickFolders) {
+        if (activeFolder != null) {
+            "save_here"
+        } else {
+            when {
+                !hasAllFiles -> "grant_all_files"
+                quickFolders.isNotEmpty() -> "qfolder_${quickFolders.first().second.absolutePath}"
+                else -> "toggle_filename_preset"
+            }
+        }
+    }
+    val focusController = rememberPanelFocus(
+        pageKey = browseKey,
+        memory = focusMemory,
+        fallbackFirstKey = fallbackKey,
+    )
+
+    val handleBack = {
+        val browsing = currentFolder
+        if (browsing != null) {
+            val isQuickRoot = quickFolders.any { it.second.absolutePath == browsing.absolutePath }
+            val parent = folderState?.parentDir
+            currentFolder = if (!isQuickRoot && parent != null) parent else null
+        } else {
+            onBack()
+        }
+    }
+    BackHandler(onBack = handleBack)
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val newAll = WallpaperStore.hasAllFilesAccess()
+                if (newAll != hasAllFiles) {
+                    hasAllFiles = newAll
+                    scanTrigger++
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(scanTrigger, hasAllFiles) {
+        quickFolders = withContext(Dispatchers.IO) { BackupManager.getQuickFolders() }
+    }
+
+    LaunchedEffect(currentFolder, scanTrigger) {
+        val target = currentFolder
+        folderState = if (target != null) {
+            withContext(Dispatchers.IO) { BackupManager.browseDirectory(target) }
+        } else {
+            null
+        }
+    }
+
+    var lastRestoredKey by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(browseKey, folderState, quickFolders) {
+        if (lastRestoredKey == browseKey) return@LaunchedEffect
+        val target = currentFolder
+        if (target == null) {
+            if (quickFolders.isNotEmpty() || !hasAllFiles) {
+                focusController.restoreFocus()
+                lastRestoredKey = browseKey
+            }
+        } else if (folderState?.currentDir?.absolutePath == target.absolutePath) {
+            focusController.restoreFocus()
+            lastRestoredKey = browseKey
+        }
+    }
+
+    fun openSubfolder(itemKey: String, dir: File) {
+        focusController.saveNow(itemKey)
+        focusMemory.clear("backup_export_dir:${dir.absolutePath}")
+        currentFolder = dir
+    }
+
+    fun saveBackupToFolder(dir: File, targetName: String) {
+        val savedPath = BackupManager.exportToDirectory(context, dir, targetName)
+        Toast.makeText(
+            context,
+            if (savedPath != null) context.getString(R.string.toast_backup_saved, savedPath)
+            else context.getString(R.string.toast_backup_failed),
+            Toast.LENGTH_SHORT,
+        ).show()
+        if (savedPath != null) {
+            onExportSaved()
+        }
+    }
+
+    val normalizedName = remember(fileName) { BackupManager.normalizeFileName(fileName) }
+
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.customize_backup_restore),
+            title = activeFolder?.name?.takeIf { it.isNotBlank() } ?: stringResource(R.string.backup_export_file),
+            subtitle = activeFolder?.absolutePath ?: stringResource(R.string.backup_export_panel_subtitle),
+        )
+        LazyColumn(
+            state = focusController.listState,
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            if (activeFolder != null) {
+                val state = folderState
+                val dirLabel = activeFolder.name.ifBlank { activeFolder.absolutePath }
+                item(key = "save_here") {
+                    TvSettingsItem(
+                        icon = Icons.Outlined.FileUpload,
+                        title = stringResource(R.string.backup_save_here),
+                        subtitle = stringResource(R.string.backup_save_here_subtitle, "$dirLabel/$normalizedName"),
+                        onClick = { saveBackupToFolder(activeFolder, normalizedName) },
+                        modifier = focusController.modifierFor("save_here"),
+                    )
+                }
+                item(key = "folder_back_roots") {
+                    TvSettingsItem(
+                        icon = Icons.Outlined.Home,
+                        title = stringResource(R.string.wallpaper_folder_back_roots),
+                        subtitle = stringResource(R.string.wallpaper_folder_back_roots_subtitle),
+                        onClick = { currentFolder = null },
+                        modifier = focusController.modifierFor("folder_back_roots"),
+                    )
+                }
+                val parent = state?.parentDir
+                if (parent != null) {
+                    val parentItemKey = "folder_up_${parent.absolutePath}"
+                    item(key = parentItemKey) {
+                        TvSettingsItem(
+                            icon = Icons.Outlined.FolderOpen,
+                            title = stringResource(R.string.wallpaper_folder_up),
+                            subtitle = stringResource(
+                                R.string.wallpaper_folder_up_subtitle,
+                                parent.name.ifBlank { parent.absolutePath },
+                            ),
+                            onClick = { currentFolder = parent },
+                            modifier = focusController.modifierFor(parentItemKey),
+                        )
+                    }
+                }
+                if (state != null) {
+                    itemsIndexed(state.directories, key = { _, d -> "dir_${d.absolutePath}" }) { _, subDir ->
+                        val dirKey = "dir_${subDir.absolutePath}"
+                        TvSettingsItem(
+                            icon = Icons.Outlined.FolderOpen,
+                            title = subDir.name,
+                            subtitle = stringResource(R.string.wallpaper_folder_item_subtitle, subDir.absolutePath),
+                            onClick = { openSubfolder(dirKey, subDir) },
+                            modifier = focusController.modifierFor(dirKey),
+                            showChevron = true,
+                        )
+                    }
+                    if (state.files.isNotEmpty()) {
+                        item(key = "section_existing_files") {
+                            Text(
+                                stringResource(R.string.backup_existing_files_section).uppercase(),
+                                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.8.sp),
+                                color = ToolkitColors.Accent,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            )
+                        }
+                        itemsIndexed(state.files, key = { _, f -> f.id }) { _, entry ->
+                            TvSettingsItem(
+                                icon = Icons.Outlined.FileUpload,
+                                title = entry.name,
+                                subtitle = stringResource(R.string.backup_overwrite_file_subtitle, entry.formattedSubtitle()),
+                                onClick = { saveBackupToFolder(activeFolder, entry.name) },
+                                modifier = focusController.modifierFor(entry.id),
+                            )
+                        }
+                    }
+                }
+            } else {
+                if (!hasAllFiles) {
+                    item(key = "grant_all_files") {
+                        TvSettingsItem(
+                            icon = Icons.Outlined.Settings,
+                            title = stringResource(R.string.wallpaper_all_files_title),
+                            subtitle = stringResource(R.string.backup_all_files_permission_subtitle),
+                            onClick = { WallpaperStore.openAllFilesAccessSettings(context) },
+                            modifier = focusController.modifierFor("grant_all_files"),
+                            showChevron = true,
+                        )
+                    }
+                }
+
+                item(key = "filename_input") {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 4.dp),
+                    ) {
+                        Text(
+                            stringResource(R.string.backup_filename_label),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = ToolkitColors.OnSurfaceMuted,
+                            modifier = Modifier.padding(horizontal = 8.dp),
+                        )
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .background(ToolkitColors.OnSurface.copy(alpha = 0.08f), ItemShape)
+                                .border(1.dp, ToolkitColors.Accent.copy(alpha = 0.5f), ItemShape)
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                        ) {
+                            BasicTextField(
+                                value = fileName,
+                                onValueChange = { fileName = it },
+                                singleLine = true,
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = ToolkitColors.OnSurface),
+                                cursorBrush = SolidColor(ToolkitColors.Accent),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Ascii,
+                                    imeAction = ImeAction.Done,
+                                ),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                }
+
+                item(key = "toggle_filename_preset") {
+                    val isDefault = normalizedName.equals(BackupManager.DEFAULT_FILE_NAME, ignoreCase = true)
+                    val sampleTimestamp = remember { BackupManager.generateTimestampedFileName() }
+                    TvSettingsItem(
+                        icon = Icons.Outlined.Schedule,
+                        title = if (isDefault) {
+                            stringResource(R.string.backup_filename_use_timestamp)
+                        } else {
+                            stringResource(R.string.backup_filename_use_default)
+                        },
+                        subtitle = if (isDefault) {
+                            stringResource(R.string.backup_filename_use_timestamp_subtitle, sampleTimestamp)
+                        } else {
+                            stringResource(R.string.backup_filename_use_default_subtitle, BackupManager.DEFAULT_FILE_NAME)
+                        },
+                        onClick = {
+                            fileName = if (isDefault) {
+                                BackupManager.generateTimestampedFileName()
+                            } else {
+                                BackupManager.DEFAULT_FILE_NAME
+                            }
+                        },
+                        modifier = focusController.modifierFor("toggle_filename_preset"),
+                    )
+                }
+
+                if (quickFolders.isNotEmpty()) {
+                    item(key = "section_folders") {
+                        Text(
+                            stringResource(R.string.backup_select_folder_section).uppercase(),
+                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.8.sp),
+                            color = ToolkitColors.Accent,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        )
+                    }
+                    itemsIndexed(quickFolders, key = { _, pair -> "qfolder_${pair.second.absolutePath}" }) { _, (label, dir) ->
+                        val qKey = "qfolder_${dir.absolutePath}"
+                        TvSettingsItem(
+                            icon = Icons.Outlined.FolderOpen,
+                            title = label,
+                            subtitle = dir.absolutePath,
+                            onClick = { openSubfolder(qKey, dir) },
+                            modifier = focusController.modifierFor(qKey),
+                            showChevron = true,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BackupImportFilePanel(
+    focusMemory: PanelFocusMemory,
+    onRestoreCompleted: () -> Unit,
+    onBack: () -> Unit,
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var hasAllFiles by remember { mutableStateOf(WallpaperStore.hasAllFilesAccess()) }
+    var allBackups by remember { mutableStateOf<List<LocalBackupEntry>>(emptyList()) }
+    var quickFolders by remember { mutableStateOf<List<Pair<String, File>>>(emptyList()) }
+    var currentFolder by remember { mutableStateOf<File?>(null) }
+    var folderState by remember { mutableStateOf<BackupFolderBrowserState?>(null) }
+    var scanTrigger by remember { mutableIntStateOf(0) }
+
+    val activeFolder = currentFolder
+    val browseKey = activeFolder?.let { "backup_import_dir:${it.absolutePath}" } ?: "backup_import_roots"
+    val fallbackKey = remember(activeFolder, hasAllFiles, quickFolders, allBackups) {
+        if (activeFolder != null) {
+            "folder_back_roots"
+        } else {
+            when {
+                !hasAllFiles -> "grant_all_files"
+                allBackups.isNotEmpty() -> allBackups.first().id
+                quickFolders.isNotEmpty() -> "qfolder_${quickFolders.first().second.absolutePath}"
+                else -> "rescan_storage"
+            }
+        }
+    }
+    val focusController = rememberPanelFocus(
+        pageKey = browseKey,
+        memory = focusMemory,
+        fallbackFirstKey = fallbackKey,
+    )
+
+    val handleBack = {
+        val browsing = currentFolder
+        if (browsing != null) {
+            val isQuickRoot = quickFolders.any { it.second.absolutePath == browsing.absolutePath }
+            val parent = folderState?.parentDir
+            currentFolder = if (!isQuickRoot && parent != null) parent else null
+        } else {
+            onBack()
+        }
+    }
+    BackHandler(onBack = handleBack)
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val newAll = WallpaperStore.hasAllFilesAccess()
+                if (newAll != hasAllFiles) {
+                    hasAllFiles = newAll
+                    scanTrigger++
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(scanTrigger, hasAllFiles) {
+        val (folders, backups) = withContext(Dispatchers.IO) {
+            BackupManager.getQuickFolders() to BackupManager.queryAllLocalBackups(context)
+        }
+        quickFolders = folders
+        allBackups = backups
+    }
+
+    LaunchedEffect(currentFolder, scanTrigger) {
+        val target = currentFolder
+        folderState = if (target != null) {
+            withContext(Dispatchers.IO) { BackupManager.browseDirectory(target) }
+        } else {
+            null
+        }
+    }
+
+    var lastRestoredKey by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(browseKey, folderState, quickFolders, allBackups) {
+        if (lastRestoredKey == browseKey) return@LaunchedEffect
+        val target = currentFolder
+        if (target == null) {
+            if (quickFolders.isNotEmpty() || allBackups.isNotEmpty() || !hasAllFiles) {
+                focusController.restoreFocus()
+                lastRestoredKey = browseKey
+            }
+        } else if (folderState?.currentDir?.absolutePath == target.absolutePath) {
+            focusController.restoreFocus()
+            lastRestoredKey = browseKey
+        }
+    }
+
+    fun selectEntry(entry: LocalBackupEntry) {
+        val ok = BackupManager.importFromEntry(context, entry)
+        Toast.makeText(
+            context,
+            context.getString(if (ok) R.string.toast_restore_success else R.string.toast_restore_failed),
+            Toast.LENGTH_SHORT,
+        ).show()
+        if (ok) {
+            onRestoreCompleted()
+        }
+    }
+
+    fun openSubfolder(itemKey: String, dir: File) {
+        focusController.saveNow(itemKey)
+        focusMemory.clear("backup_import_dir:${dir.absolutePath}")
+        currentFolder = dir
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.customize_backup_restore),
+            title = activeFolder?.name?.takeIf { it.isNotBlank() } ?: stringResource(R.string.backup_import_file),
+            subtitle = activeFolder?.absolutePath ?: stringResource(R.string.backup_import_panel_subtitle),
+        )
+        LazyColumn(
+            state = focusController.listState,
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            if (activeFolder != null) {
+                val state = folderState
+                item(key = "folder_back_roots") {
+                    TvSettingsItem(
+                        icon = Icons.Outlined.Home,
+                        title = stringResource(R.string.wallpaper_folder_back_roots),
+                        subtitle = stringResource(R.string.wallpaper_folder_back_roots_subtitle),
+                        onClick = { currentFolder = null },
+                        modifier = focusController.modifierFor("folder_back_roots"),
+                    )
+                }
+                val parent = state?.parentDir
+                if (parent != null) {
+                    val parentItemKey = "folder_up_${parent.absolutePath}"
+                    item(key = parentItemKey) {
+                        TvSettingsItem(
+                            icon = Icons.Outlined.FolderOpen,
+                            title = stringResource(R.string.wallpaper_folder_up),
+                            subtitle = stringResource(
+                                R.string.wallpaper_folder_up_subtitle,
+                                parent.name.ifBlank { parent.absolutePath },
+                            ),
+                            onClick = { currentFolder = parent },
+                            modifier = focusController.modifierFor(parentItemKey),
+                        )
+                    }
+                }
+                if (state != null) {
+                    if (state.directories.isEmpty() && state.files.isEmpty()) {
+                        item(key = "folder_empty") {
+                            Text(
+                                stringResource(R.string.backup_folder_empty),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = ToolkitColors.OnSurfaceMuted,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                            )
+                        }
+                    } else {
+                        itemsIndexed(state.directories, key = { _, d -> "dir_${d.absolutePath}" }) { _, subDir ->
+                            val dirKey = "dir_${subDir.absolutePath}"
+                            TvSettingsItem(
+                                icon = Icons.Outlined.FolderOpen,
+                                title = subDir.name,
+                                subtitle = stringResource(R.string.wallpaper_folder_item_subtitle, subDir.absolutePath),
+                                onClick = { openSubfolder(dirKey, subDir) },
+                                modifier = focusController.modifierFor(dirKey),
+                                showChevron = true,
+                            )
+                        }
+                        itemsIndexed(state.files, key = { _, f -> f.id }) { _, entry ->
+                            TvSettingsItem(
+                                icon = Icons.Outlined.Restore,
+                                title = entry.name,
+                                subtitle = entry.formattedSubtitle(),
+                                onClick = { selectEntry(entry) },
+                                modifier = focusController.modifierFor(entry.id),
+                            )
+                        }
+                    }
+                }
+            } else {
+                if (!hasAllFiles) {
+                    item(key = "grant_all_files") {
+                        TvSettingsItem(
+                            icon = Icons.Outlined.Settings,
+                            title = stringResource(R.string.wallpaper_all_files_title),
+                            subtitle = stringResource(R.string.backup_all_files_permission_subtitle),
+                            onClick = { WallpaperStore.openAllFilesAccessSettings(context) },
+                            modifier = focusController.modifierFor("grant_all_files"),
+                            showChevron = true,
+                        )
+                    }
+                }
+
+                if (quickFolders.isNotEmpty()) {
+                    item(key = "section_folders") {
+                        Text(
+                            stringResource(R.string.wallpaper_quick_folders_section).uppercase(),
+                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.8.sp),
+                            color = ToolkitColors.Accent,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        )
+                    }
+                    itemsIndexed(quickFolders, key = { _, pair -> "qfolder_${pair.second.absolutePath}" }) { _, (label, dir) ->
+                        val qKey = "qfolder_${dir.absolutePath}"
+                        TvSettingsItem(
+                            icon = Icons.Outlined.FolderOpen,
+                            title = label,
+                            subtitle = dir.absolutePath,
+                            onClick = { openSubfolder(qKey, dir) },
+                            modifier = focusController.modifierFor(qKey),
+                            showChevron = true,
+                        )
+                    }
+                }
+
+                item(key = "section_all_backups") {
+                    Text(
+                        stringResource(R.string.backup_all_files_section, allBackups.size).uppercase(),
+                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.8.sp),
+                        color = ToolkitColors.Accent,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
+                }
+
+                item(key = "rescan_storage") {
+                    TvSettingsItem(
+                        icon = Icons.Outlined.Refresh,
+                        title = stringResource(R.string.wallpaper_rescan),
+                        subtitle = stringResource(R.string.backup_rescan_subtitle),
+                        onClick = { scanTrigger++ },
+                        modifier = focusController.modifierFor("rescan_storage"),
+                    )
+                }
+
+                if (allBackups.isEmpty()) {
+                    item(key = "empty_notice") {
+                        Text(
+                            stringResource(R.string.backup_local_empty),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = ToolkitColors.OnSurfaceMuted,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                        )
+                    }
+                } else {
+                    itemsIndexed(allBackups, key = { _, entry -> entry.id }) { _, entry ->
+                        TvSettingsItem(
+                            icon = Icons.Outlined.Restore,
+                            title = entry.name,
+                            subtitle = entry.formattedSubtitle(),
+                            onClick = { selectEntry(entry) },
+                            modifier = focusController.modifierFor(entry.id),
+                        )
+                    }
+                }
             }
         }
     }

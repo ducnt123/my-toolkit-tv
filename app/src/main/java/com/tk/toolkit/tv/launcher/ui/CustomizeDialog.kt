@@ -72,6 +72,7 @@ import androidx.compose.material.icons.outlined.PlayCircleOutline
 import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Restore
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Sensors
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Settings
@@ -188,6 +189,7 @@ private sealed interface CustomizePage {
     data object WallpaperUrl : CustomizePage { override val depth = 3 }
     data object WatchSources : CustomizePage { override val depth = 2 }
     data object HeaderShortcuts : CustomizePage { override val depth = 2 }
+    data object HeaderSearchTarget : CustomizePage { override val depth = 3 }
     data object ClockDateColor : CustomizePage { override val depth = 2 }
 
     // Controls & Device behavior
@@ -340,7 +342,8 @@ fun CustomizeDialog(
     lockSystemSettings: Boolean,
     lockSystemGuard: Boolean,
     headerShortcutsOrder: List<HeaderShortcut> = HeaderShortcut.DEFAULT_ORDER,
-    visibleHeaderShortcuts: Set<String> = HeaderShortcut.DEFAULT_ORDER.map { it.id }.toSet(),
+    visibleHeaderShortcuts: Set<String> = HeaderShortcut.DEFAULT_VISIBLE_IDS,
+    searchShortcutTarget: String = "",
     clockColorPreset: String = "default",
     dateColorPreset: String = "default",
     clockGradientEnabled: Boolean = true,
@@ -377,6 +380,7 @@ fun CustomizeDialog(
     onSetLockSystemGuard: (Boolean) -> Unit,
     onSetHeaderShortcutsOrder: (List<HeaderShortcut>) -> Unit = {},
     onToggleHeaderShortcutVisible: (HeaderShortcut, Boolean) -> Unit = { _, _ -> },
+    onSetSearchShortcutTarget: (String) -> Unit = {},
     onSetClockColorPreset: (String) -> Unit = {},
     onSetDateColorPreset: (String) -> Unit = {},
     onSetClockGradientEnabled: (Boolean) -> Unit = {},
@@ -410,6 +414,7 @@ fun CustomizeDialog(
             CustomizePage.WallpaperUrl -> CustomizePage.ThemeWallpaper
             CustomizePage.WatchSources -> CustomizePage.AppearanceGroup
             CustomizePage.HeaderShortcuts -> CustomizePage.AppearanceGroup
+            CustomizePage.HeaderSearchTarget -> CustomizePage.HeaderShortcuts
             CustomizePage.ClockDateColor -> CustomizePage.AppearanceGroup
             CustomizePage.AutoLaunch -> CustomizePage.ControlsGroup
             CustomizePage.RemoteButtonsList -> CustomizePage.ControlsGroup
@@ -641,8 +646,23 @@ fun CustomizeDialog(
                                     focusMemory = focusMemory,
                                     shortcutsOrder = headerShortcutsOrder,
                                     visibleShortcuts = visibleHeaderShortcuts,
+                                    searchTarget = searchShortcutTarget,
+                                    apps = apps,
                                     onSetShortcutsOrder = onSetHeaderShortcutsOrder,
                                     onToggleShortcutVisible = onToggleHeaderShortcutVisible,
+                                    onOpenSearchTarget = { navigateForward(CustomizePage.HeaderSearchTarget) },
+                                    onBack = ::navigateBack,
+                                )
+                            }
+                            CustomizePage.HeaderSearchTarget -> {
+                                HeaderSearchTargetPanel(
+                                    focusMemory = focusMemory,
+                                    currentTarget = searchShortcutTarget,
+                                    apps = apps,
+                                    onSelectTarget = { target ->
+                                        onSetSearchShortcutTarget(target)
+                                        navigateBack()
+                                    },
                                     onBack = ::navigateBack,
                                 )
                             }
@@ -3821,8 +3841,11 @@ private fun HeaderShortcutsPanel(
     focusMemory: PanelFocusMemory,
     shortcutsOrder: List<HeaderShortcut>,
     visibleShortcuts: Set<String>,
+    searchTarget: String,
+    apps: List<LauncherApp>,
     onSetShortcutsOrder: (List<HeaderShortcut>) -> Unit,
     onToggleShortcutVisible: (HeaderShortcut, Boolean) -> Unit,
+    onOpenSearchTarget: () -> Unit,
     onBack: () -> Unit,
 ) {
     BackHandler(onBack = onBack)
@@ -3831,6 +3854,7 @@ private fun HeaderShortcutsPanel(
         memory = focusMemory,
         fallbackFirstKey = shortcutsOrder.firstOrNull()?.id,
     )
+    val appsByPkg = remember(apps) { apps.associateBy { it.packageName } }
     LaunchedEffect(Unit) { focusController.restoreFocus() }
 
     Column(Modifier.fillMaxSize()) {
@@ -3876,6 +3900,88 @@ private fun HeaderShortcutsPanel(
                         }
                     },
                     modifier = focusController.modifierFor(shortcut.id),
+                )
+            }
+
+            item(key = "section_search_target") {
+                SectionSubheader(stringResource(R.string.search_shortcut_target_section))
+            }
+
+            item(key = "search_target") {
+                val targetApp = searchTarget.takeIf { it.isNotBlank() }?.let { appsByPkg[it] }
+                val subtitleText = when {
+                    searchTarget.isBlank() -> stringResource(R.string.search_shortcut_target_default)
+                    targetApp != null -> stringResource(R.string.remote_target_open_app, targetApp.label)
+                    else -> stringResource(R.string.remote_target_open_app, searchTarget)
+                }
+                TvSettingsItem(
+                    icon = if (targetApp == null) Icons.Outlined.Search else null,
+                    appIcon = targetApp?.icon,
+                    title = stringResource(R.string.search_shortcut_target_title),
+                    subtitle = subtitleText,
+                    onClick = {
+                        focusController.saveNow("search_target")
+                        onOpenSearchTarget()
+                    },
+                    modifier = focusController.modifierFor("search_target"),
+                    showChevron = true,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeaderSearchTargetPanel(
+    focusMemory: PanelFocusMemory,
+    currentTarget: String,
+    apps: List<LauncherApp>,
+    onSelectTarget: (String) -> Unit,
+    onBack: () -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    val sortedApps = remember(apps) { apps.sortedBy { it.label.lowercase() } }
+    val focusController = rememberPanelFocus(
+        pageKey = CustomizePage.HeaderSearchTarget,
+        memory = focusMemory,
+        fallbackFirstKey = "target_default",
+    )
+    LaunchedEffect(Unit) { focusController.restoreFocus() }
+
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(
+            breadcrumb = stringResource(R.string.customize_header_shortcuts),
+            title = stringResource(R.string.search_shortcut_target_title),
+            subtitle = stringResource(R.string.search_shortcut_target_panel_subtitle),
+        )
+        LazyColumn(
+            state = focusController.listState,
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.weight(1f),
+        ) {
+            item(key = "target_default") {
+                val selected = currentTarget.isBlank()
+                ActionChoiceItem(
+                    icon = Icons.Outlined.Search,
+                    title = stringResource(R.string.search_shortcut_target_default),
+                    subtitle = if (selected) stringResource(R.string.common_selected)
+                    else stringResource(R.string.search_shortcut_target_default_subtitle),
+                    selected = selected,
+                    onClick = { onSelectTarget("") },
+                    modifier = focusController.modifierFor("target_default"),
+                )
+            }
+            itemsIndexed(sortedApps, key = { _, app -> "app_${app.packageName}" }) { _, app ->
+                val itemKey = "app_${app.packageName}"
+                val selected = currentTarget == app.packageName
+                ActionChoiceItem(
+                    appIcon = app.icon,
+                    title = app.label,
+                    subtitle = if (selected) stringResource(R.string.common_selected) else app.packageName,
+                    selected = selected,
+                    onClick = { onSelectTarget(app.packageName) },
+                    modifier = focusController.modifierFor(itemKey),
                 )
             }
         }

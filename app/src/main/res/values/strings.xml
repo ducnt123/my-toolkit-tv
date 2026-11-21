@@ -313,6 +313,11 @@
     <string name="shortcut_status_hidden">Position %1$d · Hidden</string>
     <string name="shortcut_move_up">Move up</string>
     <string name="shortcut_move_down">Move down</string>
+    <string name="search_shortcut_target_section">Search button action</string>
+    <string name="search_shortcut_target_title">Search button app</string>
+    <string name="search_shortcut_target_panel_subtitle">Choose whether the Search button opens Google Assistant or a custom app</string>
+    <string name="search_shortcut_target_default">Default (Google Assistant / System Search)</string>
+    <string name="search_shortcut_target_default_subtitle">Open Android TV / Google TV Assistant search</string>
     <string name="group_controls">Controls &amp; Device behavior</string>
     <string name="group_controls_subtitle">Auto-launch, remote button remapping, screensaver</string>
     <string name="group_language">Ngôn ngữ / Language</string>

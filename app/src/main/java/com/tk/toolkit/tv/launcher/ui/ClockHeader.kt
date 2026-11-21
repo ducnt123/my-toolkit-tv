@@ -169,7 +169,7 @@ fun ClockHeader(
     showInputsButton: Boolean = false,
     onOpenInputs: () -> Unit = {},
     shortcutOrder: List<HeaderShortcut> = HeaderShortcut.DEFAULT_ORDER,
-    visibleShortcuts: Set<String> = HeaderShortcut.DEFAULT_ORDER.map { it.id }.toSet(),
+    visibleShortcuts: Set<String> = HeaderShortcut.DEFAULT_VISIBLE_IDS,
     clockColorPreset: String = "default",
     dateColorPreset: String = "default",
     clockGradientEnabled: Boolean = true,

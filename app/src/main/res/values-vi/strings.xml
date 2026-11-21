@@ -313,6 +313,11 @@
     <string name="shortcut_status_hidden">Vị trí %1$d · Đã ẩn</string>
     <string name="shortcut_move_up">Di chuyển lên</string>
     <string name="shortcut_move_down">Di chuyển xuống</string>
+    <string name="search_shortcut_target_section">Hành động của nút Tìm kiếm</string>
+    <string name="search_shortcut_target_title">Ứng dụng cho nút Tìm kiếm</string>
+    <string name="search_shortcut_target_panel_subtitle">Chọn gọi Google Assistant mặc định hoặc mở một ứng dụng tùy chỉnh</string>
+    <string name="search_shortcut_target_default">Mặc định (Google Assistant / Tìm kiếm hệ thống)</string>
+    <string name="search_shortcut_target_default_subtitle">Mở trình tìm kiếm / trợ lý giọng nói của Android TV</string>
     <string name="group_controls">Điều khiển &amp; Hành vi thiết bị</string>
     <string name="group_controls_subtitle">Tự khởi chạy, gán phím điều khiển, bảo vệ màn hình</string>
     <string name="group_language">Ngôn ngữ / Language</string>

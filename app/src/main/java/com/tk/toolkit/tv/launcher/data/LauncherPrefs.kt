@@ -84,26 +84,21 @@ class LauncherPrefs(context: Context) {
     }
 
     fun visibleHeaderShortcuts(): Set<String> {
-        val saved = prefs.getStringSet(KEY_HEADER_SHORTCUTS_VISIBLE, null)
-            ?: return HeaderShortcut.DEFAULT_ORDER.map { it.id }.toSet()
-        if (!prefs.getBoolean(KEY_HEADER_SHORTCUT_SEARCH_ADDED, false)) {
-            val migrated = saved + HeaderShortcut.SEARCH.id
-            prefs.edit {
-                putStringSet(KEY_HEADER_SHORTCUTS_VISIBLE, migrated)
-                putBoolean(KEY_HEADER_SHORTCUT_SEARCH_ADDED, true)
-            }
-            return migrated
-        }
-        return saved
+        return prefs.getStringSet(KEY_HEADER_SHORTCUTS_VISIBLE, null)
+            ?: HeaderShortcut.DEFAULT_VISIBLE_IDS
     }
 
     fun setHeaderShortcutVisible(shortcut: HeaderShortcut, visible: Boolean) {
         val current = visibleHeaderShortcuts().toMutableSet()
         if (visible) current.add(shortcut.id) else current.remove(shortcut.id)
-        prefs.edit {
-            putStringSet(KEY_HEADER_SHORTCUTS_VISIBLE, current)
-            putBoolean(KEY_HEADER_SHORTCUT_SEARCH_ADDED, true)
-        }
+        prefs.edit { putStringSet(KEY_HEADER_SHORTCUTS_VISIBLE, current) }
+    }
+
+    fun searchShortcutTarget(): String =
+        prefs.getString(KEY_SEARCH_SHORTCUT_TARGET, "").orEmpty()
+
+    fun setSearchShortcutTarget(target: String) {
+        prefs.edit { putString(KEY_SEARCH_SHORTCUT_TARGET, target) }
     }
 
     fun isBackToAmbientEnabled(): Boolean = prefs.getBoolean(KEY_BACK_TO_AMBIENT, true)
@@ -445,6 +440,7 @@ class LauncherPrefs(context: Context) {
         )
         root.put(KEY_HEADER_SHORTCUTS_ORDER, headerShortcutsOrder().joinToString(",") { it.id })
         root.put(KEY_HEADER_SHORTCUTS_VISIBLE, JSONArray(visibleHeaderShortcuts().toList()))
+        root.put(KEY_SEARCH_SHORTCUT_TARGET, searchShortcutTarget())
         root.put(KEY_APP_LOCK_PACKAGES, JSONArray(lockedPackages().toList()))
         root.put(KEY_APP_LOCK_CUSTOMIZE, isLockCustomizeEnabled())
         root.put(KEY_APP_LOCK_APP_ACTIONS, isLockAppActionsEnabled())
@@ -513,6 +509,9 @@ class LauncherPrefs(context: Context) {
             root.optJSONArray(KEY_HEADER_SHORTCUTS_VISIBLE)?.toStringList()?.let {
                 putStringSet(KEY_HEADER_SHORTCUTS_VISIBLE, it.toSet())
             }
+            if (root.has(KEY_SEARCH_SHORTCUT_TARGET)) {
+                putString(KEY_SEARCH_SHORTCUT_TARGET, root.optString(KEY_SEARCH_SHORTCUT_TARGET, ""))
+            }
             root.optJSONArray(KEY_APP_LOCK_PACKAGES)?.toStringList()?.let {
                 putStringSet(KEY_APP_LOCK_PACKAGES, it.toSet())
             }
@@ -563,7 +562,7 @@ class LauncherPrefs(context: Context) {
         private const val KEY_ADVANCED_VISIBLE = "advanced_settings_visible"
         private const val KEY_HEADER_SHORTCUTS_ORDER = "header_shortcuts_order"
         private const val KEY_HEADER_SHORTCUTS_VISIBLE = "header_shortcuts_visible"
-        private const val KEY_HEADER_SHORTCUT_SEARCH_ADDED = "header_shortcut_search_added"
+        private const val KEY_SEARCH_SHORTCUT_TARGET = "search_shortcut_target"
         private const val KEY_REMOTE_TARGET_PREFIX = "remote_target_"
         private const val KEY_REMOTE_KEYCODE_PREFIX = "remote_keycode_"
         private const val KEY_REMOTE_SCANCODE_PREFIX = "remote_scancode_"

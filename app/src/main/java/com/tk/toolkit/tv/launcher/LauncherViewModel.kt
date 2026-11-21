@@ -51,7 +51,9 @@ data class LauncherState(
     /** Order of shortcut buttons in the top header. */
     val headerShortcutsOrder: List<HeaderShortcut> = HeaderShortcut.DEFAULT_ORDER,
     /** IDs of visible header shortcut buttons. */
-    val visibleHeaderShortcuts: Set<String> = HeaderShortcut.DEFAULT_ORDER.map { it.id }.toSet(),
+    val visibleHeaderShortcuts: Set<String> = HeaderShortcut.DEFAULT_VISIBLE_IDS,
+    /** Target app package for the header Search button ("" = default Google Assistant / system search). */
+    val searchShortcutTarget: String = "",
     /** Packages whose Continue Watching items are hidden by the user. */
     val disabledWatchPackages: Set<String> = emptySet(),
     /** Packages that currently have at least one item in Continue Watching (before source filtering). */
@@ -123,6 +125,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             appColumns = prefs.appColumns(),
             headerShortcutsOrder = prefs.headerShortcutsOrder(),
             visibleHeaderShortcuts = prefs.visibleHeaderShortcuts(),
+            searchShortcutTarget = prefs.searchShortcutTarget(),
             disabledWatchPackages = prefs.disabledWatchPackages(),
             remoteButtons = prefs.remoteButtonConfigs(),
             customKeyMappings = prefs.customKeyMappings(),
@@ -180,6 +183,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val columns = prefs.appColumns()
             val shortcutsOrder = prefs.headerShortcutsOrder()
             val visibleShortcuts = prefs.visibleHeaderShortcuts()
+            val searchTarget = prefs.searchShortcutTarget()
             val disabledWatch = prefs.disabledWatchPackages()
             val remoteConfigs = prefs.remoteButtonConfigs()
             val customMappings = prefs.customKeyMappings()
@@ -219,6 +223,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     appColumns = columns,
                     headerShortcutsOrder = shortcutsOrder,
                     visibleHeaderShortcuts = visibleShortcuts,
+                    searchShortcutTarget = searchTarget,
                     disabledWatchPackages = disabledWatch,
                     activeWatchPackages = activePkgs,
                     remoteButtons = remoteConfigs,
@@ -292,6 +297,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun setHeaderShortcutVisible(shortcut: HeaderShortcut, visible: Boolean) {
         prefs.setHeaderShortcutVisible(shortcut, visible)
         _state.update { it.copy(visibleHeaderShortcuts = prefs.visibleHeaderShortcuts()) }
+    }
+
+    fun setSearchShortcutTarget(target: String) {
+        prefs.setSearchShortcutTarget(target)
+        _state.update { it.copy(searchShortcutTarget = target) }
     }
 
     fun setRemoteButtonTarget(button: RemoteButton, target: String) {

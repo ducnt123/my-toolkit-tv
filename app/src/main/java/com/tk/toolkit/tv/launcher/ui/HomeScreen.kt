@@ -374,7 +374,7 @@ private fun HomeScreenContent(
                 clockColorPreset = state.clockColorPreset,
                 dateColorPreset = state.dateColorPreset,
                 clockGradientEnabled = state.clockGradientEnabled,
-                onOpenSearch = { AppActions.openSearch(context) },
+                onOpenSearch = { AppActions.openSearch(context, state.searchShortcutTarget) },
                 onOpenNetwork = {
                     if (isSettingsLocked) pendingPinAction = PendingPinAction.OpenNetworkSettings
                     else AppActions.openNetworkSettings(context)
@@ -626,6 +626,7 @@ private fun HomeScreenContent(
             lockSystemGuard = state.lockSystemGuard,
             headerShortcutsOrder = state.headerShortcutsOrder,
             visibleHeaderShortcuts = state.visibleHeaderShortcuts,
+            searchShortcutTarget = state.searchShortcutTarget,
             clockColorPreset = state.clockColorPreset,
             dateColorPreset = state.dateColorPreset,
             clockGradientEnabled = state.clockGradientEnabled,
@@ -662,6 +663,7 @@ private fun HomeScreenContent(
             onSetLockSystemGuard = viewModel::setLockSystemGuardEnabled,
             onSetHeaderShortcutsOrder = viewModel::setHeaderShortcutsOrder,
             onToggleHeaderShortcutVisible = viewModel::setHeaderShortcutVisible,
+            onSetSearchShortcutTarget = viewModel::setSearchShortcutTarget,
             onSetClockColorPreset = viewModel::setClockColorPreset,
             onSetDateColorPreset = viewModel::setDateColorPreset,
             onSetClockGradientEnabled = viewModel::setClockGradientEnabled,

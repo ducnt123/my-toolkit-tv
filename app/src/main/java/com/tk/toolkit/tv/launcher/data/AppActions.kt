@@ -29,8 +29,22 @@ object AppActions {
     fun openSystemSettings(context: Context) =
         context.safeStart(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 
-    /** Opens Android TV / Google TV global search or Assistant search overlay. */
-    fun openSearch(context: Context) {
+    /**
+     * Opens the configured Search action: either a user-selected custom app package
+     * or Android TV / Google TV's default Google Assistant / system search overlay.
+     */
+    fun openSearch(context: Context, customTargetPackage: String = "") {
+        val target = customTargetPackage.trim()
+        if (target.isNotEmpty()) {
+            if (RemoteButtons.launchPackage(context, target)) return
+            val localized = LocaleHelper.wrapContext(context)
+            Toast.makeText(
+                localized,
+                localized.getString(R.string.toast_could_not_open),
+                Toast.LENGTH_SHORT,
+            ).show()
+            return
+        }
         val pm = context.packageManager
         val candidates = listOf(
             Intent(Intent.ACTION_ASSIST)

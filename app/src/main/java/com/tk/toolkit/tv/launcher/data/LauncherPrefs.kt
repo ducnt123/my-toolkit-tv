@@ -84,14 +84,26 @@ class LauncherPrefs(context: Context) {
     }
 
     fun visibleHeaderShortcuts(): Set<String> {
-        return prefs.getStringSet(KEY_HEADER_SHORTCUTS_VISIBLE, null)
-            ?: HeaderShortcut.DEFAULT_ORDER.map { it.id }.toSet()
+        val saved = prefs.getStringSet(KEY_HEADER_SHORTCUTS_VISIBLE, null)
+            ?: return HeaderShortcut.DEFAULT_ORDER.map { it.id }.toSet()
+        if (!prefs.getBoolean(KEY_HEADER_SHORTCUT_SEARCH_ADDED, false)) {
+            val migrated = saved + HeaderShortcut.SEARCH.id
+            prefs.edit {
+                putStringSet(KEY_HEADER_SHORTCUTS_VISIBLE, migrated)
+                putBoolean(KEY_HEADER_SHORTCUT_SEARCH_ADDED, true)
+            }
+            return migrated
+        }
+        return saved
     }
 
     fun setHeaderShortcutVisible(shortcut: HeaderShortcut, visible: Boolean) {
         val current = visibleHeaderShortcuts().toMutableSet()
         if (visible) current.add(shortcut.id) else current.remove(shortcut.id)
-        prefs.edit { putStringSet(KEY_HEADER_SHORTCUTS_VISIBLE, current) }
+        prefs.edit {
+            putStringSet(KEY_HEADER_SHORTCUTS_VISIBLE, current)
+            putBoolean(KEY_HEADER_SHORTCUT_SEARCH_ADDED, true)
+        }
     }
 
     fun isBackToAmbientEnabled(): Boolean = prefs.getBoolean(KEY_BACK_TO_AMBIENT, true)
@@ -551,6 +563,7 @@ class LauncherPrefs(context: Context) {
         private const val KEY_ADVANCED_VISIBLE = "advanced_settings_visible"
         private const val KEY_HEADER_SHORTCUTS_ORDER = "header_shortcuts_order"
         private const val KEY_HEADER_SHORTCUTS_VISIBLE = "header_shortcuts_visible"
+        private const val KEY_HEADER_SHORTCUT_SEARCH_ADDED = "header_shortcut_search_added"
         private const val KEY_REMOTE_TARGET_PREFIX = "remote_target_"
         private const val KEY_REMOTE_KEYCODE_PREFIX = "remote_keycode_"
         private const val KEY_REMOTE_SCANCODE_PREFIX = "remote_scancode_"

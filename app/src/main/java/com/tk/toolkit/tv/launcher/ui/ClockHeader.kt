@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Input
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SettingsEthernet
 import androidx.compose.material.icons.outlined.Speaker
@@ -164,6 +165,7 @@ fun ClockHeader(
     onOpenAudioOutput: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenSearch: () -> Unit = {},
     showInputsButton: Boolean = false,
     onOpenInputs: () -> Unit = {},
     shortcutOrder: List<HeaderShortcut> = HeaderShortcut.DEFAULT_ORDER,
@@ -187,6 +189,10 @@ fun ClockHeader(
         for (shortcut in shortcutOrder) {
             if (shortcut.id !in visibleShortcuts) continue
             when (shortcut) {
+                HeaderShortcut.SEARCH -> {
+                    HeaderButton(Icons.Outlined.Search, stringResource(R.string.header_search), onOpenSearch)
+                    Spacer(Modifier.width(12.dp))
+                }
                 HeaderShortcut.INPUTS -> {
                     if (showInputsButton) {
                         HeaderButton(Icons.AutoMirrored.Outlined.Input, stringResource(R.string.header_inputs), onOpenInputs)

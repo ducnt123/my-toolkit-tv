@@ -19,6 +19,7 @@
     <string name="tile_customize">Customize</string>
     <string name="move_hint">Use the arrows to move  ·  Press OK to drop</string>
     <string name="loading_apps">Loading apps…</string>
+    <string name="header_search">Search</string>
     <string name="header_inputs">Inputs</string>
     <string name="header_network_ethernet">Ethernet</string>
     <string name="header_network_wifi">Wi-Fi</string>
@@ -304,6 +305,7 @@
     <string name="color_preset_pink">Neon Pink</string>
     <string name="color_preset_coral">Coral Red</string>
     <string name="color_preset_orange">Sunset Orange</string>
+    <string name="header_shortcut_search">Search</string>
     <string name="header_shortcut_inputs">Inputs</string>
     <string name="header_shortcut_network">Network</string>
     <string name="header_shortcut_audio_output">Audio output</string>

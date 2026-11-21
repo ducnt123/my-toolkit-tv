@@ -19,6 +19,7 @@
     <string name="tile_customize">Tùy chỉnh</string>
     <string name="move_hint">Dùng phím mũi tên để di chuyển  ·  Bấm OK để đặt</string>
     <string name="loading_apps">Đang tải ứng dụng…</string>
+    <string name="header_search">Tìm kiếm</string>
     <string name="header_inputs">Ngõ vào</string>
     <string name="header_network_ethernet">Mạng có dây</string>
     <string name="header_network_wifi">Wi-Fi</string>
@@ -304,6 +305,7 @@
     <string name="color_preset_pink">Hồng Neon</string>
     <string name="color_preset_coral">Đỏ san hô</string>
     <string name="color_preset_orange">Cam hoàng hôn</string>
+    <string name="header_shortcut_search">Tìm kiếm</string>
     <string name="header_shortcut_inputs">Ngõ vào</string>
     <string name="header_shortcut_network">Mạng</string>
     <string name="header_shortcut_audio_output">Đầu ra âm thanh</string>

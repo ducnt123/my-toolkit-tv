@@ -29,6 +29,31 @@ object AppActions {
     fun openSystemSettings(context: Context) =
         context.safeStart(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 
+    /** Opens Android TV / Google TV global search or Assistant search overlay. */
+    fun openSearch(context: Context) {
+        val pm = context.packageManager
+        val candidates = listOf(
+            Intent(Intent.ACTION_ASSIST)
+                .setPackage("com.google.android.katniss")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            Intent(Intent.ACTION_ASSIST)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            Intent(Intent.ACTION_SEARCH_LONG_PRESS)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            Intent(Intent.ACTION_SEARCH)
+                .setPackage("com.google.android.katniss")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            Intent(Intent.ACTION_WEB_SEARCH)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            Intent(Intent.ACTION_SEARCH)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+        val match = candidates.firstOrNull { it.resolveActivity(pm) != null }
+            ?: candidates.getOrNull(1)
+            ?: candidates.first()
+        context.safeStart(match)
+    }
+
     /** Starts the Android TV / Google TV screensaver (Ambient Mode / Daydream). */
     fun startScreensaver(context: Context) {
         val candidates = listOf(

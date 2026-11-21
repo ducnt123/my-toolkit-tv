@@ -374,6 +374,7 @@ private fun HomeScreenContent(
                 clockColorPreset = state.clockColorPreset,
                 dateColorPreset = state.dateColorPreset,
                 clockGradientEnabled = state.clockGradientEnabled,
+                onOpenSearch = { AppActions.openSearch(context) },
                 onOpenNetwork = {
                     if (isSettingsLocked) pendingPinAction = PendingPinAction.OpenNetworkSettings
                     else AppActions.openNetworkSettings(context)

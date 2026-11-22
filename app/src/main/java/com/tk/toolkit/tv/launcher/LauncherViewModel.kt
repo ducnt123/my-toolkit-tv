@@ -7,7 +7,6 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tk.toolkit.tv.core.ToolkitAccessibilityService
-import com.tk.toolkit.tv.launcher.data.AppChannelGroup
 import com.tk.toolkit.tv.launcher.data.AppLanguage
 import com.tk.toolkit.tv.launcher.data.AppLockManager
 import com.tk.toolkit.tv.launcher.data.AppRepository
@@ -17,7 +16,6 @@ import com.tk.toolkit.tv.launcher.data.ContinueWatching
 import com.tk.toolkit.tv.launcher.data.CustomKeyMapping
 import com.tk.toolkit.tv.launcher.data.HeaderShortcut
 import com.tk.toolkit.tv.launcher.data.LauncherApp
-import com.tk.toolkit.tv.launcher.data.LauncherLayoutMode
 import com.tk.toolkit.tv.launcher.data.LauncherPrefs
 import com.tk.toolkit.tv.launcher.data.LocaleHelper
 import com.tk.toolkit.tv.launcher.data.RemoteButton
@@ -46,18 +44,10 @@ data class LauncherState(
     val hiddenApps: List<LauncherApp> = emptyList(),
     /** Continue Watching items whose app is installed and enabled, and that the user hasn't removed. */
     val watchItems: List<WatchItem> = emptyList(),
-    /** Per-app preview recommendation channels loaded from the system TV Provider. */
-    val previewChannelsByPackage: Map<String, List<AppChannelGroup>> = emptyMap(),
     /** Whether the Continue Watching row is enabled by the user. */
     val showWatchRow: Boolean = true,
     /** Number of app tiles per row in the Apps grid (4, 5, or 6). */
     val appColumns: Int = 6,
-    /** Main launcher layout style (Classic Grid vs Tizen Bottom Bar). */
-    val layoutMode: LauncherLayoutMode = LauncherLayoutMode.DEFAULT,
-    /** When in Tizen Bottom Bar mode: 1st Home opens Float Bar, 2nd Home opens Classic Grid. */
-    val homeFloatThenGrid: Boolean = true,
-    /** Temporary flag set when user presses 2nd Home from Float Bar to view full Classic Grid. */
-    val forceGridOnce: Boolean = false,
     /** Order of shortcut buttons in the top header. */
     val headerShortcutsOrder: List<HeaderShortcut> = HeaderShortcut.DEFAULT_ORDER,
     /** IDs of visible header shortcut buttons. */
@@ -133,8 +123,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         LauncherState(
             showWatchRow = prefs.isWatchRowVisible(),
             appColumns = prefs.appColumns(),
-            layoutMode = prefs.layoutMode(),
-            homeFloatThenGrid = prefs.isHomeFloatThenGridEnabled(),
             headerShortcutsOrder = prefs.headerShortcutsOrder(),
             visibleHeaderShortcuts = prefs.visibleHeaderShortcuts(),
             searchShortcutTarget = prefs.searchShortcutTarget(),
@@ -190,14 +178,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         refreshJob = viewModelScope.launch {
             val all = withContext(refreshDispatcher) { prefs.sort(repository.loadApps()) }
             val (watch, activePkgs) = withContext(refreshDispatcher) { loadWatchData(all) }
-            val previewChannels = withContext(refreshDispatcher) {
-                watchNextRepository.loadPreviewChannels(all.associateBy { it.packageName })
-            }
             val wallpaper = withContext(refreshDispatcher) { WallpaperStore.loadWallpaper(getApplication()) }
             val showWatch = prefs.isWatchRowVisible()
             val columns = prefs.appColumns()
-            val layoutMode = prefs.layoutMode()
-            val homeFloatThenGrid = prefs.isHomeFloatThenGridEnabled()
             val shortcutsOrder = prefs.headerShortcutsOrder()
             val visibleShortcuts = prefs.visibleHeaderShortcuts()
             val searchTarget = prefs.searchShortcutTarget()
@@ -236,11 +219,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     hiddenApps = splitted.hiddenApps,
                     loaded = true,
                     watchItems = watch,
-                    previewChannelsByPackage = previewChannels,
                     showWatchRow = showWatch,
                     appColumns = columns,
-                    layoutMode = layoutMode,
-                    homeFloatThenGrid = homeFloatThenGrid,
                     headerShortcutsOrder = shortcutsOrder,
                     visibleHeaderShortcuts = visibleShortcuts,
                     searchShortcutTarget = searchTarget,
@@ -307,20 +287,6 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val clamped = columns.coerceIn(4, 6)
         prefs.setAppColumns(clamped)
         _state.update { it.copy(appColumns = clamped) }
-    }
-
-    fun setLayoutMode(mode: LauncherLayoutMode) {
-        prefs.setLayoutMode(mode)
-        _state.update { it.copy(layoutMode = mode, forceGridOnce = false) }
-    }
-
-    fun setHomeFloatThenGridEnabled(enabled: Boolean) {
-        prefs.setHomeFloatThenGridEnabled(enabled)
-        _state.update { it.copy(homeFloatThenGrid = enabled) }
-    }
-
-    fun setForceGridOnce(force: Boolean) {
-        _state.update { it.copy(forceGridOnce = force) }
     }
 
     fun setHeaderShortcutsOrder(order: List<HeaderShortcut>) {
@@ -626,21 +592,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         saveOrder()
     }
 
-    fun onHomePressed(forceGridFromOverlay: Boolean = false) {
+    fun onHomePressed() {
         AppLockManager.onReturnedToHome()
         val wasMoving = _state.value.movingKey != null
-        _state.update { current ->
-            val nextForceGrid = when {
-                forceGridFromOverlay -> true
-                current.layoutMode == LauncherLayoutMode.TIZEN_BAR && current.homeFloatThenGrid -> !current.forceGridOnce
-                else -> false
-            }
-            current.copy(
-                movingKey = null,
-                forceGridOnce = nextForceGrid,
-                homeRequestCount = current.homeRequestCount + 1,
-            )
-        }
+        _state.update { it.copy(movingKey = null, homeRequestCount = it.homeRequestCount + 1) }
         if (wasMoving) saveOrder()
     }
 

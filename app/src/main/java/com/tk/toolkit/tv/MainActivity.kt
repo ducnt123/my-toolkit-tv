@@ -98,21 +98,13 @@ class MainActivity : ComponentActivity() {
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
         AutoLaunchManager.checkBootLaunch(this)
-        if (intent?.getBooleanExtra(EXTRA_FORCE_GRID_ONCE, false) == true) {
-            launcherViewModel.setForceGridOnce(true)
-        }
         setContent { ToolkitApp() }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        val forceGrid = intent.getBooleanExtra(EXTRA_FORCE_GRID_ONCE, false)
-        launcherViewModel.onHomePressed(forceGridFromOverlay = forceGrid)
-    }
-
-    companion object {
-        const val EXTRA_FORCE_GRID_ONCE = "extra_force_grid_once"
+        launcherViewModel.onHomePressed()
     }
 
     override fun onResume() {

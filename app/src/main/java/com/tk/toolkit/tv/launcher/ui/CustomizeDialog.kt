@@ -148,7 +148,6 @@ import com.tk.toolkit.tv.launcher.data.CustomKeyMapping
 import com.tk.toolkit.tv.launcher.data.FolderBrowserState
 import com.tk.toolkit.tv.launcher.data.InstallOutcome
 import com.tk.toolkit.tv.launcher.data.LauncherApp
-import com.tk.toolkit.tv.launcher.data.LauncherLayoutMode
 import com.tk.toolkit.tv.launcher.data.LauncherPrefs
 import com.tk.toolkit.tv.launcher.data.LocalBackupEntry
 import com.tk.toolkit.tv.launcher.data.LocalImageEntry
@@ -185,7 +184,6 @@ private sealed interface CustomizePage {
     data object SystemGroup : CustomizePage { override val depth = 1 }
 
     // Appearance & Layout
-    data object LayoutMode : CustomizePage { override val depth = 2 }
     data object ThemeWallpaper : CustomizePage { override val depth = 2 }
     data object WallpaperLocalFile : CustomizePage { override val depth = 3 }
     data object WallpaperUrl : CustomizePage { override val depth = 3 }
@@ -318,8 +316,6 @@ private fun rememberPanelFocus(
 fun CustomizeDialog(
     showWatchRow: Boolean,
     appColumns: Int,
-    layoutMode: LauncherLayoutMode = LauncherLayoutMode.DEFAULT,
-    homeFloatThenGrid: Boolean = true,
     backToAmbient: Boolean,
     language: AppLanguage,
     themePalette: AppThemePalette,
@@ -353,8 +349,6 @@ fun CustomizeDialog(
     clockGradientEnabled: Boolean = true,
     onToggleWatchRow: (Boolean) -> Unit,
     onSetAppColumns: (Int) -> Unit,
-    onSetLayoutMode: (LauncherLayoutMode) -> Unit = {},
-    onSetHomeFloatThenGrid: (Boolean) -> Unit = {},
     onToggleBackToAmbient: (Boolean) -> Unit,
     onSetLanguage: (AppLanguage) -> Unit,
     onSetThemePalette: (AppThemePalette) -> Unit,
@@ -415,7 +409,6 @@ fun CustomizeDialog(
             CustomizePage.Language -> CustomizePage.Main
             CustomizePage.SystemGroup -> CustomizePage.Main
             CustomizePage.AppLock -> CustomizePage.Main
-            CustomizePage.LayoutMode -> CustomizePage.AppearanceGroup
             CustomizePage.ThemeWallpaper -> CustomizePage.AppearanceGroup
             CustomizePage.WallpaperLocalFile -> CustomizePage.ThemeWallpaper
             CustomizePage.WallpaperUrl -> CustomizePage.ThemeWallpaper
@@ -524,7 +517,6 @@ fun CustomizeDialog(
                             CustomizePage.AppearanceGroup -> {
                                 AppearanceGroupPanel(
                                     focusMemory = focusMemory,
-                                    layoutMode = layoutMode,
                                     showWatchRow = showWatchRow,
                                     appColumns = appColumns,
                                     themePalette = themePalette,
@@ -535,21 +527,10 @@ fun CustomizeDialog(
                                     totalCount = apps.size,
                                     onToggleWatchRow = onToggleWatchRow,
                                     onSetAppColumns = onSetAppColumns,
-                                    onOpenLayoutMode = { navigateForward(CustomizePage.LayoutMode) },
                                     onOpenThemeWallpaper = { navigateForward(CustomizePage.ThemeWallpaper) },
                                     onOpenHeaderShortcuts = { navigateForward(CustomizePage.HeaderShortcuts) },
                                     onOpenClockDateColor = { navigateForward(CustomizePage.ClockDateColor) },
                                     onOpenSources = { navigateForward(CustomizePage.WatchSources) },
-                                    onBack = ::navigateBack,
-                                )
-                            }
-                            CustomizePage.LayoutMode -> {
-                                LayoutModePanel(
-                                    focusMemory = focusMemory,
-                                    currentMode = layoutMode,
-                                    homeFloatThenGrid = homeFloatThenGrid,
-                                    onSelectMode = onSetLayoutMode,
-                                    onToggleHomeFloatThenGrid = onSetHomeFloatThenGrid,
                                     onBack = ::navigateBack,
                                 )
                             }
@@ -1054,7 +1035,6 @@ private fun MainCustomizePanel(
 @Composable
 private fun AppearanceGroupPanel(
     focusMemory: PanelFocusMemory,
-    layoutMode: LauncherLayoutMode,
     showWatchRow: Boolean,
     appColumns: Int,
     themePalette: AppThemePalette,
@@ -1065,7 +1045,6 @@ private fun AppearanceGroupPanel(
     totalCount: Int,
     onToggleWatchRow: (Boolean) -> Unit,
     onSetAppColumns: (Int) -> Unit,
-    onOpenLayoutMode: () -> Unit,
     onOpenThemeWallpaper: () -> Unit,
     onOpenHeaderShortcuts: () -> Unit,
     onOpenClockDateColor: () -> Unit,
@@ -1076,7 +1055,7 @@ private fun AppearanceGroupPanel(
     val focusController = rememberPanelFocus(
         pageKey = CustomizePage.AppearanceGroup,
         memory = focusMemory,
-        fallbackFirstKey = "layout_mode",
+        fallbackFirstKey = "theme_wallpaper",
     )
     LaunchedEffect(Unit) { focusController.restoreFocus() }
 
@@ -1092,19 +1071,6 @@ private fun AppearanceGroupPanel(
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.weight(1f),
         ) {
-            item(key = "layout_mode") {
-                TvSettingsItem(
-                    icon = Icons.Outlined.SmartDisplay,
-                    title = stringResource(R.string.customize_layout_mode),
-                    subtitle = stringResource(layoutMode.titleRes),
-                    onClick = {
-                        focusController.saveNow("layout_mode")
-                        onOpenLayoutMode()
-                    },
-                    modifier = focusController.modifierFor("layout_mode"),
-                    showChevron = true,
-                )
-            }
             item(key = "theme_wallpaper") {
                 TvSettingsItem(
                     icon = Icons.Outlined.Palette,
@@ -1176,73 +1142,6 @@ private fun AppearanceGroupPanel(
                     modifier = focusController.modifierFor("watch_sources"),
                     showChevron = true,
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun LayoutModePanel(
-    focusMemory: PanelFocusMemory,
-    currentMode: LauncherLayoutMode,
-    homeFloatThenGrid: Boolean,
-    onSelectMode: (LauncherLayoutMode) -> Unit,
-    onToggleHomeFloatThenGrid: (Boolean) -> Unit,
-    onBack: () -> Unit,
-) {
-    BackHandler(onBack = onBack)
-    val modes = LauncherLayoutMode.entries
-    val focusController = rememberPanelFocus(
-        pageKey = CustomizePage.LayoutMode,
-        memory = focusMemory,
-        fallbackFirstKey = "mode_${currentMode.id}",
-    )
-    LaunchedEffect(Unit) { focusController.restoreFocus() }
-
-    Column(Modifier.fillMaxSize()) {
-        SheetHeader(
-            breadcrumb = stringResource(R.string.group_appearance),
-            title = stringResource(R.string.customize_layout_mode),
-            subtitle = stringResource(R.string.customize_layout_mode_panel_subtitle),
-        )
-        LazyColumn(
-            state = focusController.listState,
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.weight(1f),
-        ) {
-            itemsIndexed(modes, key = { _, mode -> "mode_${mode.id}" }) { _, mode ->
-                val itemKey = "mode_${mode.id}"
-                val selected = mode == currentMode
-                val icon = when (mode) {
-                    LauncherLayoutMode.GRID -> Icons.Outlined.GridView
-                    LauncherLayoutMode.TIZEN_BAR -> Icons.Outlined.SmartDisplay
-                }
-                ActionChoiceItem(
-                    icon = icon,
-                    title = stringResource(mode.titleRes),
-                    subtitle = stringResource(mode.subtitleRes),
-                    selected = selected,
-                    onClick = { onSelectMode(mode) },
-                    modifier = focusController.modifierFor(itemKey),
-                )
-            }
-
-            if (currentMode == LauncherLayoutMode.TIZEN_BAR) {
-                item(key = "home_float_then_grid") {
-                    TvSettingsItem(
-                        icon = Icons.Outlined.Home,
-                        title = stringResource(R.string.customize_home_float_then_grid),
-                        subtitle = if (homeFloatThenGrid) {
-                            stringResource(R.string.customize_home_float_then_grid_on)
-                        } else {
-                            stringResource(R.string.customize_home_float_then_grid_off)
-                        },
-                        onClick = { onToggleHomeFloatThenGrid(!homeFloatThenGrid) },
-                        modifier = focusController.modifierFor("home_float_then_grid"),
-                        trailingContent = { TvSwitch(checked = homeFloatThenGrid) },
-                    )
-                }
             }
         }
     }

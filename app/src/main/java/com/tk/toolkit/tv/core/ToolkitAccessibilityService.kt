@@ -18,7 +18,6 @@ import com.tk.toolkit.tv.R
 import com.tk.toolkit.tv.launcher.data.AppActions
 import com.tk.toolkit.tv.launcher.data.AppLockManager
 import com.tk.toolkit.tv.launcher.data.AutoLaunchManager
-import com.tk.toolkit.tv.launcher.data.LauncherLayoutMode
 import com.tk.toolkit.tv.launcher.data.LauncherPrefs
 import com.tk.toolkit.tv.launcher.data.LocaleHelper
 import com.tk.toolkit.tv.launcher.data.RemoteButtons
@@ -37,29 +36,15 @@ class ToolkitAccessibilityService : AccessibilityService() {
     private var target: String? = null
     private var step = Step.PressForceStop
     private val timeout = Runnable { finish(null) }
-    private var currentForegroundPackage: String = ""
 
     private val screenWakeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
                 Intent.ACTION_SCREEN_OFF -> {
-                    FloatBarOverlayManager.dismiss(context)
                     AutoLaunchManager.onScreenOff()
                     AppLockManager.onScreenOff()
                 }
-                Intent.ACTION_SCREEN_ON -> {
-                    AutoLaunchManager.onScreenOn(context)
-                    val prefs = LauncherPrefs(context)
-                    if (prefs.layoutMode() == LauncherLayoutMode.TIZEN_BAR) {
-                        handler.postDelayed({
-                            val hasBgApp = (currentForegroundPackage.isNotBlank() && currentForegroundPackage != packageName) ||
-                                (prefs.isAutoLaunchOnWakeEnabled() && prefs.autoLaunchTarget().isNotBlank())
-                            if (hasBgApp) {
-                                FloatBarOverlayManager.show(this@ToolkitAccessibilityService, autoHideAfterMs = 6_000L)
-                            }
-                        }, 450L)
-                    }
-                }
+                Intent.ACTION_SCREEN_ON -> AutoLaunchManager.onScreenOn(context)
             }
         }
     }
@@ -100,7 +85,6 @@ class ToolkitAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
-        FloatBarOverlayManager.dismiss(this)
         runCatching { LauncherPrefs(this).unregisterChangeListener(prefsListener) }
         runCatching { unregisterReceiver(screenWakeReceiver) }
         if (instance === this) instance = null
@@ -124,32 +108,10 @@ class ToolkitAccessibilityService : AccessibilityService() {
         val keyEvent = event ?: return false
         return runCatching {
             if (keyEvent.keyCode == KeyEvent.KEYCODE_HOME) {
-                val prefs = LauncherPrefs(this)
-                val isTizenFloatEnabled = prefs.layoutMode() == LauncherLayoutMode.TIZEN_BAR &&
-                    prefs.isHomeFloatThenGridEnabled()
-                val inExternalApp = currentForegroundPackage.isNotBlank() &&
-                    currentForegroundPackage != packageName
-
-                if (FloatBarOverlayManager.isShowing()) {
-                    if (keyEvent.action == KeyEvent.ACTION_UP) {
-                        FloatBarOverlayManager.dismiss(this)
-                        FloatBarOverlayManager.openMainHome(this, forceGrid = isTizenFloatEnabled)
-                    }
-                    return true
-                }
-
-                if (!RemoteButtons.shouldOverrideHomeKey(this) && !(isTizenFloatEnabled && inExternalApp)) {
-                    return false
-                }
+                if (!RemoteButtons.shouldOverrideHomeKey(this)) return false
                 if (keyEvent.action == KeyEvent.ACTION_UP) {
                     val held = keyEvent.eventTime - keyEvent.downTime
-                    if (held >= LONG_PRESS_MS) {
-                        performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS)
-                    } else if (isTizenFloatEnabled && inExternalApp) {
-                        FloatBarOverlayManager.show(this, autoHideAfterMs = 0L)
-                    } else {
-                        openToolkit()
-                    }
+                    if (held >= LONG_PRESS_MS) performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS) else openToolkit()
                 }
                 return true
             }
@@ -164,12 +126,6 @@ class ToolkitAccessibilityService : AccessibilityService() {
             val cls = accEvent.className?.toString().orEmpty()
 
             if (accEvent.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-                if (pkg.isNotBlank() &&
-                    pkg != "com.android.systemui" &&
-                    cls != "android.widget.Toast"
-                ) {
-                    currentForegroundPackage = pkg
-                }
                 // Catches the stock home showing up some other way (boot, an app exiting to home).
                 if (pkg == STOCK_LAUNCHER &&
                     cls == STOCK_HOME_ACTIVITY &&

@@ -110,18 +110,6 @@ object AppActions {
         context.safeStart(match)
     }
 
-    /** Opens Android TV's Bluetooth / Remotes & Accessories settings. */
-    fun openBluetoothSettings(context: Context) {
-        val candidates = listOf(
-            Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            Intent("com.google.android.tv.settings.ACCESSORIES").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-        )
-        val match = candidates.firstOrNull { it.resolveActivity(context.packageManager) != null }
-            ?: candidates.last()
-        context.safeStart(match)
-    }
-
     /**
      * Google TV's own "Audio output" picker (TV speakers, HDMI, Bluetooth). On Sony Bravia TVs,
      * triggers Sony's native Quick Settings bottom bar focused directly on "Speakers" (Audio Output).

@@ -283,22 +283,6 @@
     <!-- Customize groups -->
     <string name="group_appearance">Appearance &amp; Layout</string>
     <string name="group_appearance_subtitle">%1$s · %2$d columns</string>
-    <string name="customize_layout_mode">Home screen style</string>
-    <string name="customize_layout_mode_panel_subtitle">Choose between the classic app grid and the Samsung Tizen bottom bar</string>
-    <string name="layout_mode_grid">Classic Grid</string>
-    <string name="layout_mode_grid_subtitle">Full-screen rows with 16:9 app banners and Continue Watching</string>
-    <string name="layout_mode_tizen_bar">Bottom Bar (Tizen Style)</string>
-    <string name="layout_mode_tizen_bar_subtitle">Compact bottom dock with square app icons, quick actions, and contextual previews</string>
-    <string name="customize_home_float_then_grid">1st Home opens Float Bar · 2nd Home opens Grid</string>
-    <string name="customize_home_float_then_grid_on">Press Home once over an app for Float Bar, press again for full Grid</string>
-    <string name="customize_home_float_then_grid_off">Pressing Home always opens the Bottom Bar home screen</string>
-    <string name="tizen_menu_label">Menu</string>
-    <string name="tizen_screensaver_label">Screensaver</string>
-    <string name="tizen_bluetooth_label">Bluetooth</string>
-    <string name="tizen_bluetooth_subtitle">Remotes &amp; accessories</string>
-    <string name="tizen_open_grid_label">Full Grid View</string>
-    <string name="tizen_open_grid_subtitle">Switch to full-screen grid</string>
-    <string name="tizen_recommended_section">Recommended · %1$s</string>
     <string name="customize_header_shortcuts">Header shortcuts</string>
     <string name="customize_header_shortcuts_subtitle">%1$d of %2$d visible</string>
     <string name="customize_header_shortcuts_panel_subtitle">Show, hide, and reorder shortcut buttons in the top header</string>

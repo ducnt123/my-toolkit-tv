@@ -19,9 +19,17 @@ import com.tk.toolkit.tv.R
 import java.net.HttpURLConnection
 import java.net.URL
 
+/** A group of recommended preview programs belonging to a specific channel of an app. */
+data class AppChannelGroup(
+    val channelId: Long,
+    val channelTitle: String,
+    val packageName: String,
+    val items: List<WatchItem>,
+)
+
 /**
- * Reads and manages Android TV / Google TV "Play Next" (Watch Next) programs from the system
- * `android.media.tv` provider (`content://android.media.tv/watch_next_program`).
+ * Reads and manages Android TV / Google TV "Play Next" (Watch Next) programs and per-app
+ * Preview Channels from the system `android.media.tv` provider.
  */
 class WatchNextRepository(private val context: Context) {
 
@@ -30,6 +38,8 @@ class WatchNextRepository(private val context: Context) {
 
     /** Watch Next programs URI. */
     val watchNextUri: Uri = TvContract.WatchNextPrograms.CONTENT_URI
+    private val channelsUri: Uri = TvContract.Channels.CONTENT_URI
+    private val previewProgramsUri: Uri = TvContract.PreviewPrograms.CONTENT_URI
 
     /**
      * Queries all browsable Play Next items from installed apps, sorted by most recent engagement.
@@ -63,6 +73,56 @@ class WatchNextRepository(private val context: Context) {
                 watchNextId = row.id,
                 removable = true,
             )
+        }
+        return result
+    }
+
+    /**
+     * Queries per-app preview channels (`content://android.media.tv/channel` and
+     * `content://android.media.tv/preview_program`), grouped by package name.
+     */
+    fun loadPreviewChannels(appsByPackage: Map<String, LauncherApp>): Map<String, List<AppChannelGroup>> {
+        val channels = queryChannels()
+        if (channels.isEmpty()) return emptyMap()
+        val programsByChannel = queryPreviewPrograms()
+        if (programsByChannel.isEmpty()) return emptyMap()
+
+        val result = HashMap<String, MutableList<AppChannelGroup>>()
+        for (ch in channels) {
+            val rawItems = programsByChannel[ch.id].orEmpty()
+            if (rawItems.isEmpty()) continue
+            val app = appsByPackage[ch.packageName]
+            val appLabel = app?.label ?: resolveAppLabel(ch.packageName) ?: continue
+            val accent = app?.accent ?: Color(0xFF38BDF8)
+            val watchItems = rawItems.take(MAX_PROGRAMS_PER_CHANNEL).map { row ->
+                val artUrl = row.thumbnailUri ?: row.posterArtUri
+                val bitmap = artUrl?.let { loadArtwork(it) } ?: app?.banner
+                val progress = if (row.durationMillis > 0L && row.positionMillis > 0L) {
+                    (row.positionMillis.toFloat() / row.durationMillis.toFloat()).coerceIn(0.02f, 1f)
+                } else null
+                WatchItem(
+                    key = "preview:${row.id}",
+                    title = row.title.ifBlank { appLabel },
+                    subtitle = buildSubtitle(row, appLabel),
+                    artworkBitmap = bitmap,
+                    glow = accent,
+                    packageName = ch.packageName,
+                    appName = appLabel,
+                    uri = row.intentUri,
+                    progress = progress,
+                    watchNextId = null,
+                    removable = false,
+                )
+            }
+            if (watchItems.isNotEmpty()) {
+                val list = result.getOrPut(ch.packageName) { ArrayList() }
+                list += AppChannelGroup(
+                    channelId = ch.id,
+                    channelTitle = ch.displayName.ifBlank { appLabel },
+                    packageName = ch.packageName,
+                    items = watchItems,
+                )
+            }
         }
         return result
     }
@@ -116,6 +176,62 @@ class WatchNextRepository(private val context: Context) {
             }
         }
         return list
+    }
+
+    private data class RawChannel(
+        val id: Long,
+        val packageName: String,
+        val displayName: String,
+    )
+
+    private fun queryChannels(): List<RawChannel> {
+        val list = ArrayList<RawChannel>()
+        val projection = arrayOf(
+            TvContract.Channels._ID,
+            TvContract.Channels.COLUMN_PACKAGE_NAME,
+            TvContract.Channels.COLUMN_DISPLAY_NAME,
+            TvContract.Channels.COLUMN_BROWSABLE,
+        )
+        runCatching {
+            resolver.query(channelsUri, projection, null, null, null)?.use { cursor ->
+                while (cursor.moveToNext() && list.size < 60) {
+                    val id = cursor.getLongOrNull(TvContract.Channels._ID) ?: continue
+                    val pkg = cursor.getStringOrNull(TvContract.Channels.COLUMN_PACKAGE_NAME)
+                        ?.takeIf { it.isNotBlank() } ?: continue
+                    val browsable = (cursor.getIntOrNull(TvContract.Channels.COLUMN_BROWSABLE) ?: 1) != 0
+                    if (!browsable) continue
+                    val name = cursor.getStringOrNull(TvContract.Channels.COLUMN_DISPLAY_NAME).orEmpty().trim()
+                    list += RawChannel(id = id, packageName = pkg, displayName = name)
+                }
+            }
+        }
+        return list
+    }
+
+    private fun queryPreviewPrograms(): Map<Long, List<RawWatchNext>> {
+        val map = HashMap<Long, MutableList<RawWatchNext>>()
+        runCatching {
+            resolver.query(
+                previewProgramsUri,
+                PREVIEW_PROJECTION,
+                null,
+                null,
+                "${TvContract.PreviewPrograms.COLUMN_WEIGHT} DESC",
+            )?.use { cursor ->
+                var count = 0
+                while (cursor.moveToNext() && count < 120) {
+                    val channelId = cursor.getLongOrNull(TvContract.PreviewPrograms.COLUMN_CHANNEL_ID) ?: continue
+                    val row = parseRow(cursor) ?: continue
+                    if (!row.browsable) continue
+                    val list = map.getOrPut(channelId) { ArrayList() }
+                    if (list.size < MAX_PROGRAMS_PER_CHANNEL) {
+                        list += row
+                        count++
+                    }
+                }
+            }
+        }
+        return map
     }
 
     private fun parseRow(cursor: Cursor): RawWatchNext? = runCatching {
@@ -247,6 +363,7 @@ class WatchNextRepository(private val context: Context) {
 
     private companion object {
         const val MAX_ITEMS = 40
+        const val MAX_PROGRAMS_PER_CHANNEL = 10
         const val MAX_W = 480
         const val MAX_H = 270
 
@@ -266,6 +383,24 @@ class WatchNextRepository(private val context: Context) {
             TvContract.WatchNextPrograms.COLUMN_LAST_ENGAGEMENT_TIME_UTC_MILLIS,
             TvContract.WatchNextPrograms.COLUMN_WATCH_NEXT_TYPE,
             TvContract.WatchNextPrograms.COLUMN_BROWSABLE,
+        )
+
+        val PREVIEW_PROJECTION = arrayOf(
+            TvContract.PreviewPrograms._ID,
+            TvContract.PreviewPrograms.COLUMN_CHANNEL_ID,
+            TvContract.PreviewPrograms.COLUMN_PACKAGE_NAME,
+            TvContract.PreviewPrograms.COLUMN_TITLE,
+            TvContract.PreviewPrograms.COLUMN_EPISODE_TITLE,
+            TvContract.PreviewPrograms.COLUMN_SEASON_DISPLAY_NUMBER,
+            TvContract.PreviewPrograms.COLUMN_EPISODE_DISPLAY_NUMBER,
+            TvContract.PreviewPrograms.COLUMN_SHORT_DESCRIPTION,
+            TvContract.PreviewPrograms.COLUMN_POSTER_ART_URI,
+            TvContract.PreviewPrograms.COLUMN_THUMBNAIL_URI,
+            TvContract.PreviewPrograms.COLUMN_INTENT_URI,
+            TvContract.PreviewPrograms.COLUMN_LAST_PLAYBACK_POSITION_MILLIS,
+            TvContract.PreviewPrograms.COLUMN_DURATION_MILLIS,
+            TvContract.PreviewPrograms.COLUMN_WEIGHT,
+            TvContract.PreviewPrograms.COLUMN_BROWSABLE,
         )
     }
 }

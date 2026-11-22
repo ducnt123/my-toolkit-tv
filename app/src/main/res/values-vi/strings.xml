@@ -283,6 +283,22 @@
     <!-- Customize groups -->
     <string name="group_appearance">Giao diện &amp; Bố cục</string>
     <string name="group_appearance_subtitle">%1$s · %2$d cột</string>
+    <string name="customize_layout_mode">Kiểu giao diện Launcher</string>
+    <string name="customize_layout_mode_panel_subtitle">Chuyển đổi giữa Lưới truyền thống và Thanh Bar đáy màn hình kiểu Samsung Tizen</string>
+    <string name="layout_mode_grid">Lưới truyền thống (Grid)</string>
+    <string name="layout_mode_grid_subtitle">Bố cục toàn màn hình với thẻ banner 16:9 và hàng Tiếp tục xem</string>
+    <string name="layout_mode_tizen_bar">Thanh Bar đáy màn hình (Tizen Style)</string>
+    <string name="layout_mode_tizen_bar_subtitle">Thanh dock gọn ở đáy với biểu tượng vuông, cụm nút nhanh và thanh đề xuất ngữ cảnh</string>
+    <string name="customize_home_float_then_grid">Bấm Home lần 1 mở Float Bar · lần 2 mở Lưới</string>
+    <string name="customize_home_float_then_grid_on">Khi đang ở ứng dụng khác: bấm Home 1 lần mở Float Bar, bấm lần 2 về màn hình Lưới</string>
+    <string name="customize_home_float_then_grid_off">Bấm Home luôn mở màn hình chính dạng Thanh Bar</string>
+    <string name="tizen_menu_label">Menu</string>
+    <string name="tizen_screensaver_label">Bảo vệ màn hình</string>
+    <string name="tizen_bluetooth_label">Bluetooth</string>
+    <string name="tizen_bluetooth_subtitle">Điều khiển &amp; phụ kiện</string>
+    <string name="tizen_open_grid_label">Màn hình Lưới</string>
+    <string name="tizen_open_grid_subtitle">Mở giao diện Lưới truyền thống</string>
+    <string name="tizen_recommended_section">Đề xuất · %1$s</string>
     <string name="customize_header_shortcuts">Nút phím tắt</string>
     <string name="customize_header_shortcuts_subtitle">%1$d/%2$d hiển thị</string>
     <string name="customize_header_shortcuts_panel_subtitle">Tùy chỉnh hiển thị và sắp xếp thứ tự phím tắt trên thanh tiêu đề</string>

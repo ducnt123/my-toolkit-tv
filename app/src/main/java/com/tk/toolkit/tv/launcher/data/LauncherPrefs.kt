@@ -72,6 +72,20 @@ class LauncherPrefs(context: Context) {
         prefs.edit { putInt(KEY_APP_COLUMNS, columns.coerceIn(4, 6)) }
     }
 
+    fun layoutMode(): LauncherLayoutMode =
+        LauncherLayoutMode.fromId(prefs.getString(KEY_LAYOUT_MODE, LauncherLayoutMode.DEFAULT.id))
+
+    fun setLayoutMode(mode: LauncherLayoutMode) {
+        prefs.edit { putString(KEY_LAYOUT_MODE, mode.id) }
+    }
+
+    fun isHomeFloatThenGridEnabled(): Boolean =
+        prefs.getBoolean(KEY_HOME_FLOAT_THEN_GRID, true)
+
+    fun setHomeFloatThenGridEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_HOME_FLOAT_THEN_GRID, enabled) }
+    }
+
     fun headerShortcutsOrder(): List<HeaderShortcut> {
         val raw = prefs.getString(KEY_HEADER_SHORTCUTS_ORDER, null) ?: return HeaderShortcut.DEFAULT_ORDER
         val parsed = raw.split(",").mapNotNull { HeaderShortcut.fromId(it.trim()) }
@@ -410,6 +424,8 @@ class LauncherPrefs(context: Context) {
         root.put(KEY_DISABLED_WATCH_PKGS, JSONArray(disabledWatchPackages().toList()))
         root.put(KEY_SHOW_WATCH_ROW, isWatchRowVisible())
         root.put(KEY_APP_COLUMNS, appColumns())
+        root.put(KEY_LAYOUT_MODE, layoutMode().id)
+        root.put(KEY_HOME_FLOAT_THEN_GRID, isHomeFloatThenGridEnabled())
         root.put(KEY_BACK_TO_AMBIENT, isBackToAmbientEnabled())
         root.put(KEY_LANGUAGE, language())
         root.put(KEY_THEME_PALETTE, themePalette().id)
@@ -475,6 +491,8 @@ class LauncherPrefs(context: Context) {
             }
             if (root.has(KEY_SHOW_WATCH_ROW)) putBoolean(KEY_SHOW_WATCH_ROW, root.optBoolean(KEY_SHOW_WATCH_ROW, true))
             if (root.has(KEY_APP_COLUMNS)) putInt(KEY_APP_COLUMNS, root.optInt(KEY_APP_COLUMNS, 6).coerceIn(4, 6))
+            if (root.has(KEY_LAYOUT_MODE)) putString(KEY_LAYOUT_MODE, LauncherLayoutMode.fromId(root.optString(KEY_LAYOUT_MODE)).id)
+            if (root.has(KEY_HOME_FLOAT_THEN_GRID)) putBoolean(KEY_HOME_FLOAT_THEN_GRID, root.optBoolean(KEY_HOME_FLOAT_THEN_GRID, true))
             if (root.has(KEY_BACK_TO_AMBIENT)) putBoolean(KEY_BACK_TO_AMBIENT, root.optBoolean(KEY_BACK_TO_AMBIENT, true))
             if (root.has(KEY_LANGUAGE)) putString(KEY_LANGUAGE, AppLanguage.fromCode(root.optString(KEY_LANGUAGE)).code)
             if (root.has(KEY_THEME_PALETTE)) putString(KEY_THEME_PALETTE, AppThemePalette.fromId(root.optString(KEY_THEME_PALETTE)).id)
@@ -544,6 +562,8 @@ class LauncherPrefs(context: Context) {
         private const val KEY_SHOW_WATCH_ROW = "show_watch_row"
         private const val KEY_DISABLED_WATCH_PKGS = "disabled_watch_pkgs"
         private const val KEY_APP_COLUMNS = "app_columns"
+        private const val KEY_LAYOUT_MODE = "layout_mode"
+        private const val KEY_HOME_FLOAT_THEN_GRID = "home_float_then_grid"
         private const val KEY_BACK_TO_AMBIENT = "back_to_ambient"
         private const val KEY_LANGUAGE = "language"
         private const val KEY_THEME_PALETTE = "theme_palette"

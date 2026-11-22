@@ -92,6 +92,7 @@ import com.tk.toolkit.tv.launcher.data.AppActions
 import com.tk.toolkit.tv.launcher.data.AppActions.safeStart
 import com.tk.toolkit.tv.launcher.data.AppLockManager
 import com.tk.toolkit.tv.launcher.data.LauncherApp
+import com.tk.toolkit.tv.launcher.data.LauncherLayoutMode
 import com.tk.toolkit.tv.launcher.data.LocaleHelper
 import com.tk.toolkit.tv.launcher.data.TvInputs
 import com.tk.toolkit.tv.launcher.data.WatchItem
@@ -263,12 +264,19 @@ private fun HomeScreenContent(
         }
     }
 
-    // Back cancels an active move; otherwise jumps to the first item of the current section
-    // (Continue Watching -> first watch item; Apps/Header -> first app). If already at the
-    // first item with nowhere left to go back to, starts the screensaver / Ambient Mode if enabled.
+    val isTizenBarActive = state.layoutMode == LauncherLayoutMode.TIZEN_BAR && !state.forceGridOnce
+
+    // Back cancels an active move; if in forced-Grid mode from Tizen Bar, returns to Tizen Bar;
+    // otherwise jumps to the first item of the current section or starts Screensaver.
     BackHandler {
         if (state.movingKey != null) {
             viewModel.endMove()
+        } else if (state.layoutMode == LauncherLayoutMode.TIZEN_BAR && state.forceGridOnce) {
+            viewModel.setForceGridOnce(false)
+        } else if (isTizenBarActive) {
+            if (state.backToAmbient) {
+                AppActions.startScreensaver(context)
+            }
         } else {
             val inWatchSection = watchRowFocused || (!headerFocused && lastFocusedKey in watchKeys)
             val firstWatchKey = watchItems.firstOrNull()?.key
@@ -340,6 +348,86 @@ private fun HomeScreenContent(
     }
 
     Box(Modifier.fillMaxSize()) {
+        if (isTizenBarActive) {
+            // --- SAMSUNG TIZEN BOTTOM BAR MODE ---
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(horizontal = 48.dp, vertical = 28.dp),
+            ) {
+                ClockDateDisplay(
+                    language = state.language,
+                    clockColorPreset = state.clockColorPreset,
+                    dateColorPreset = state.dateColorPreset,
+                    clockGradientEnabled = state.clockGradientEnabled,
+                )
+            }
+
+            if (state.loaded) {
+                val lockedSet = remember(lockActive, state.lockedPackages, state.lockSystemSettings) {
+                    buildSet {
+                        if (lockActive) {
+                            addAll(state.lockedPackages)
+                            if (state.lockSystemSettings) addAll(AppLockManager.SETTINGS_PACKAGES)
+                        }
+                    }
+                }
+                TizenBarLayout(
+                    apps = state.apps,
+                    hasMoreApps = hasMoreApps,
+                    watchItems = watchItems,
+                    previewChannelsByPackage = state.previewChannelsByPackage,
+                    showWatchRow = state.showWatchRow,
+                    tvInputs = tvInputs,
+                    lockedPackages = lockedSet,
+                    movingKey = state.movingKey,
+                    availableUpdateVersion = state.availableUpdateVersion,
+                    homeRequestCount = state.homeRequestCount,
+                    onLaunchApp = ::launchAppGuarded,
+                    onAppLongPress = { app, rect ->
+                        menuAnchor = rect
+                        menuApp = app
+                    },
+                    onLaunchWatchItem = { item ->
+                        if (isPkgLocked(item.packageName)) {
+                            pendingPinAction = PendingPinAction.LaunchWatch(item)
+                        } else {
+                            viewModel.watchItemIntent(item)?.let { context.safeStart(it) }
+                        }
+                    },
+                    onWatchItemLongPress = { item ->
+                        menuWatchItem = item
+                    },
+                    onMoveAppBy = viewModel::moveBy,
+                    onEndMove = viewModel::endMove,
+                    onOpenHiddenApps = { showHidden = true },
+                    onOpenCustomize = {
+                        if (isCustomizeLocked) {
+                            pendingPinAction = PendingPinAction.OpenCustomize
+                        } else {
+                            showCustomize = true
+                        }
+                    },
+                    onOpenSettings = {
+                        if (isSettingsLocked) pendingPinAction = PendingPinAction.OpenSystemSettings
+                        else AppActions.openSystemSettings(context)
+                    },
+                    onOpenAudioOutput = { AppActions.openAudioOutput(context) },
+                    onOpenNetwork = {
+                        if (isSettingsLocked) pendingPinAction = PendingPinAction.OpenNetworkSettings
+                        else AppActions.openNetworkSettings(context)
+                    },
+                    onOpenBluetooth = { AppActions.openBluetoothSettings(context) },
+                    onOpenSearch = { AppActions.openSearch(context, state.searchShortcutTarget) },
+                    onStartScreensaver = { AppActions.startScreensaver(context) },
+                    onSelectInput = { input -> TvInputs.openInput(context, input) },
+                    onSwitchToGrid = if (state.homeFloatThenGrid) {
+                        { viewModel.setForceGridOnce(true) }
+                    } else null,
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
+            }
+        } else {
         Column(
             Modifier
                 .fillMaxSize()
@@ -539,6 +627,7 @@ private fun HomeScreenContent(
                 }
             }
         }
+        }
 
         AnimatedVisibility(
             visible = !state.loaded,
@@ -599,6 +688,8 @@ private fun HomeScreenContent(
         CustomizeDialog(
             showWatchRow = state.showWatchRow,
             appColumns = columns,
+            layoutMode = state.layoutMode,
+            homeFloatThenGrid = state.homeFloatThenGrid,
             backToAmbient = state.backToAmbient,
             language = state.language,
             themePalette = state.themePalette,
@@ -632,6 +723,8 @@ private fun HomeScreenContent(
             clockGradientEnabled = state.clockGradientEnabled,
             onToggleWatchRow = viewModel::setWatchRowVisible,
             onSetAppColumns = viewModel::setAppColumns,
+            onSetLayoutMode = viewModel::setLayoutMode,
+            onSetHomeFloatThenGrid = viewModel::setHomeFloatThenGridEnabled,
             onToggleBackToAmbient = viewModel::setBackToAmbientEnabled,
             onSetLanguage = viewModel::setLanguage,
             onSetThemePalette = viewModel::setThemePalette,

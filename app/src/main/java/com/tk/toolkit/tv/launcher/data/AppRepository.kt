@@ -7,7 +7,10 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Drawable
+import android.os.Build
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
@@ -66,8 +69,27 @@ class AppRepository(private val context: Context) {
         )
     }
 
-    /** Rasterizes at exactly [w]x[h], roughly the on-screen size, to keep drawing cheap. */
-    private fun Drawable.toSafeBitmap(w: Int, h: Int): Bitmap = toBitmap(w, h)
+    /**
+     * Rasterizes at [w]x[h]. For [AdaptiveIconDrawable], renders both background and foreground
+     * layers full-bleed into a square canvas so Tizen-style square tiles have no transparent ring.
+     */
+    private fun Drawable.toSafeBitmap(w: Int, h: Int): Bitmap {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && this is AdaptiveIconDrawable) {
+            val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bmp)
+            val inset = (w * 0.16f).toInt()
+            background?.let { bg ->
+                bg.setBounds(-inset, -inset, w + inset, h + inset)
+                bg.draw(canvas)
+            }
+            foreground?.let { fg ->
+                fg.setBounds(-inset, -inset, w + inset, h + inset)
+                fg.draw(canvas)
+            }
+            return bmp
+        }
+        return toBitmap(w, h)
+    }
 
     /** Average of the icon's opaque pixels, weighted toward saturated ones. */
     private fun Bitmap.dominantColor(): Color {
